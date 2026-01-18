@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .api import router as api_router
-from .data import SessionParser, ActiveSessionDetector
+from .data import SessionParser, ActiveSessionDetector, ArtifactParser
 from .config import settings
 
 app = FastAPI(
@@ -30,6 +30,7 @@ app.include_router(api_router)
 # Initialize services
 parser = SessionParser()
 detector = ActiveSessionDetector()
+artifact_parser = ArtifactParser()
 
 
 def format_duration(minutes: int) -> str:
@@ -178,6 +179,36 @@ async def session_context(request: Request, session_id: str):
             "request": request,
             "session": session,
             "context": context,
+        },
+    )
+
+
+@app.get("/artifacts", response_class=HTMLResponse)
+async def artifacts_list(request: Request, file_type: str = "", session_id: str = ""):
+    """Artifacts listing page."""
+    artifacts = artifact_parser.get_all_artifacts(limit=200)
+
+    if file_type:
+        artifacts = [a for a in artifacts if a.file_type == file_type]
+
+    if session_id:
+        artifacts = [a for a in artifacts if a.session_id == session_id]
+
+    stats = artifact_parser.get_artifact_stats()
+
+    # Get unique file types for filter
+    all_artifacts = artifact_parser.get_all_artifacts(limit=500)
+    file_types = sorted(set(a.file_type for a in all_artifacts))
+
+    return templates.TemplateResponse(
+        "artifacts.html",
+        {
+            "request": request,
+            "artifacts": artifacts,
+            "stats": stats,
+            "file_types": file_types,
+            "current_type": file_type,
+            "current_session": session_id,
         },
     )
 

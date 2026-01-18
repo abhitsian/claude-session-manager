@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Artifacts - Claude Session Manager{% endblock %}
+
+{% block content %}
+<div>
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold">Artifacts</h1>
+        <span class="text-gray-400">Files created or modified by Claude</span>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-2xl font-bold text-blue-400">{{ stats.total_artifacts }}</div>
+            <div class="text-gray-400 text-sm">Total Artifacts</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-2xl font-bold text-purple-400">{{ stats.sessions_with_artifacts }}</div>
+            <div class="text-gray-400 text-sm">Sessions</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-2xl font-bold text-green-400">{{ stats.by_type.get('code', 0) }}</div>
+            <div class="text-gray-400 text-sm">Code Files</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-2xl font-bold text-yellow-400">{{ stats.by_type.get('document', 0) }}</div>
+            <div class="text-gray-400 text-sm">Documents</div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700 mb-6">
+        <div class="flex flex-wrap gap-2">
+            <a href="/artifacts"
+               class="px-3 py-1 rounded text-sm {% if not current_type %}bg-purple-600{% else %}bg-gray-700 hover:bg-gray-600{% endif %}">
+                All
+            </a>
+            {% for ft in file_types %}
+            <a href="/artifacts?file_type={{ ft }}"
+               class="px-3 py-1 rounded text-sm {% if current_type == ft %}bg-purple-600{% else %}bg-gray-700 hover:bg-gray-600{% endif %}">
+                {{ ft|capitalize }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Artifacts List -->
+    {% if artifacts %}
+    <div class="space-y-2">
+        {% for artifact in artifacts %}
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition">
+            <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center space-x-2">
+                        <!-- File type icon -->
+                        <span class="text-lg">
+                            {% if artifact.file_type == 'code' %}&#128187;
+                            {% elif artifact.file_type == 'document' %}&#128196;
+                            {% elif artifact.file_type == 'config' %}&#9881;
+                            {% elif artifact.file_type == 'shell' %}&#128187;
+                            {% elif artifact.file_type == 'web' %}&#127760;
+                            {% elif artifact.file_type == 'image' %}&#128247;
+                            {% else %}&#128193;
+                            {% endif %}
+                        </span>
+                        <span class="font-medium text-gray-200 truncate">{{ artifact.file_name }}</span>
+                        <span class="text-xs px-2 py-0.5 rounded {% if artifact.operation == 'create' %}bg-green-600{% else %}bg-blue-600{% endif %}">
+                            {{ artifact.operation }}
+                        </span>
+                        {% if not artifact.exists %}
+                        <span class="text-xs px-2 py-0.5 rounded bg-red-600">deleted</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-gray-500 text-sm mt-1 truncate font-mono">
+                        {{ artifact.file_path }}
+                    </div>
+                    <div class="flex items-center space-x-4 text-gray-500 text-xs mt-2">
+                        <span>{{ artifact.timestamp|format_timestamp }}</span>
+                        <span>{{ artifact.file_type }}</span>
+                        {% if artifact.size_bytes > 0 %}
+                        <span>{{ (artifact.size_bytes / 1024)|round(1) }}KB</span>
+                        {% endif %}
+                        <a href="/sessions/{{ artifact.session_id }}" class="text-purple-400 hover:text-purple-300">
+                            Session {{ artifact.session_id[:8] }}...
+                        </a>
+                    </div>
+                </div>
+                <div class="flex space-x-2 ml-4">
+                    {% if artifact.exists and artifact.file_type not in ['image'] %}
+                    <button onclick="openFile('{{ artifact.file_path }}')"
+                            class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
+                        Open
+                    </button>
+                    {% endif %}
+                    <button onclick="copyPath('{{ artifact.file_path }}')"
+                            class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
+                        Copy Path
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 text-gray-500">
+        No artifacts found
+    </div>
+    {% endif %}
+
+    <!-- Copy notification -->
+    <div id="copy-notification" class="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg hidden">
+        Copied!
+    </div>
+</div>
+
+<script>
+function copyPath(path) {
+    navigator.clipboard.writeText(path).then(() => {
+        const notification = document.getElementById('copy-notification');
+        notification.classList.remove('hidden');
+        setTimeout(() => {
+            notification.classList.add('hidden');
+        }, 2000);
+    });
+}
+
+function openFile(path) {
+    // This would need to be handled by a local file opener
+    // For now, just copy the path
+    copyPath(path);
+    alert('Path copied. Open in your editor: ' + path);
+}
+</script>
+{% endblock %}

@@ -26,7 +26,8 @@
         </div>
     </div>
 
-    <!-- Active Sessions -->
+    <!-- Active Sessions (auto-refreshes every 10 seconds) -->
+    <div hx-get="/" hx-trigger="every 10s" hx-select="#active-section" hx-swap="outerHTML" id="active-section">
     {% if active_sessions %}
     <div>
         <div class="flex items-center justify-between mb-4">
@@ -34,9 +35,7 @@
                 <span class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></span>
                 Active Now ({{ active_sessions|length }})
             </h2>
-            <button onclick="location.reload()" class="text-gray-400 hover:text-white text-sm">
-                Refresh
-            </button>
+            <span class="text-gray-500 text-xs">Auto-refreshes</span>
         </div>
         <div class="space-y-3">
             {% for session in active_sessions %}
@@ -80,6 +79,7 @@
         </div>
     </div>
     {% endif %}
+    </div>
 
     <!-- Recent Sessions -->
     <div>

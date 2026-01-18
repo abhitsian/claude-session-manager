@@ -59,6 +59,20 @@ class TodoItem(BaseModel):
     active_form: Optional[str] = None
 
 
+class Artifact(BaseModel):
+    """A file artifact created or modified by Claude."""
+
+    file_path: str
+    file_name: str
+    file_type: str  # code, document, config, image, etc.
+    operation: str  # create, edit
+    session_id: str
+    timestamp: datetime
+    size_bytes: int = 0
+    mime_type: str = "application/octet-stream"
+    exists: bool = True  # Whether file still exists on disk
+
+
 class SessionContext(BaseModel):
     """Context export for session continuation."""
 

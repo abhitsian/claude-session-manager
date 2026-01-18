@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, List
 
-from ..data import SessionParser, ActiveSessionDetector, SessionMetadata
+from ..data import SessionParser, ActiveSessionDetector, SessionMetadata, ArtifactParser
 from ..services.context_generator import ContextGenerator
 
 router = APIRouter(prefix="/api")
@@ -9,6 +9,7 @@ router = APIRouter(prefix="/api")
 # Initialize services
 parser = SessionParser()
 detector = ActiveSessionDetector()
+artifact_parser = ArtifactParser()
 context_gen = ContextGenerator(parser, detector)
 
 
@@ -147,4 +148,50 @@ async def search_sessions(
         "results": [s.model_dump() for s in results],
         "total": len(results),
         "query": q,
+    }
+
+
+# ===== Artifacts =====
+
+
+@router.get("/artifacts")
+async def list_artifacts(
+    limit: int = Query(100, le=500),
+    file_type: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> dict:
+    """List all artifacts (files created/modified by Claude)."""
+    if session_id:
+        artifacts = artifact_parser.get_session_artifacts(session_id)
+    else:
+        artifacts = artifact_parser.get_all_artifacts(limit=limit)
+
+    if file_type:
+        artifacts = [a for a in artifacts if a.file_type == file_type]
+
+    return {
+        "artifacts": [a.model_dump() for a in artifacts],
+        "total": len(artifacts),
+    }
+
+
+@router.get("/artifacts/stats")
+async def get_artifact_stats() -> dict:
+    """Get artifact statistics."""
+    return artifact_parser.get_artifact_stats()
+
+
+@router.get("/sessions/{session_id}/artifacts")
+async def get_session_artifacts(session_id: str) -> dict:
+    """Get artifacts for a specific session."""
+    session = parser.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    artifacts = artifact_parser.get_session_artifacts(session_id)
+
+    return {
+        "artifacts": [a.model_dump() for a in artifacts],
+        "total": len(artifacts),
+        "session_id": session_id,
     }
