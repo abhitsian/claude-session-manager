@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Claude Session Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div class="text-3xl font-bold text-green-400">{{ stats.active_sessions }}</div>
+            <div class="text-gray-400 text-sm mt-1">Active Sessions</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div class="text-3xl font-bold text-blue-400">{{ stats.total_sessions }}</div>
+            <div class="text-gray-400 text-sm mt-1">Total Sessions</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div class="text-3xl font-bold text-purple-400">{{ stats.total_messages }}</div>
+            <div class="text-gray-400 text-sm mt-1">Total Messages</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div class="text-3xl font-bold text-yellow-400">
+                {% if stats.longest_session %}{{ stats.longest_session.messageCount }}{% else %}0{% endif %}
+            </div>
+            <div class="text-gray-400 text-sm mt-1">Longest Session (msgs)</div>
+        </div>
+    </div>
+
+    <!-- Active Sessions -->
+    {% if active_sessions %}
+    <div>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold flex items-center">
+                <span class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                Active Now ({{ active_sessions|length }})
+            </h2>
+            <button onclick="location.reload()" class="text-gray-400 hover:text-white text-sm">
+                Refresh
+            </button>
+        </div>
+        <div class="space-y-3">
+            {% for session in active_sessions %}
+            <div class="bg-gray-800 rounded-lg p-4 border border-green-500/30 hover:border-green-500/50 transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                            <code class="text-green-400 text-sm">{{ session.session_id[:8] }}...</code>
+                            {% if session.session_id == latest_id %}
+                            <span class="bg-green-600 text-xs px-2 py-0.5 rounded">Latest</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-gray-300 mt-1">
+                            <span class="text-gray-500">{{ session.project_path }}</span>
+                        </div>
+                        {% if session.summaries %}
+                        <div class="text-gray-400 text-sm mt-2 truncate-2">
+                            {{ session.summaries[0] }}
+                        </div>
+                        {% endif %}
+                        <div class="text-gray-500 text-xs mt-2">
+                            {{ session.last_activity|format_timestamp }} &middot;
+                            {{ session.message_count }} messages &middot;
+                            {{ session.model_used or 'Unknown model' }}
+                        </div>
+                    </div>
+                    <div class="flex space-x-2 ml-4">
+                        <a href="/sessions/{{ session.session_id }}"
+                           class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
+                            View
+                        </a>
+                        <a href="/sessions/{{ session.session_id }}/context"
+                           class="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-sm">
+                            Context
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Sessions -->
+    <div>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold">Recent Sessions</h2>
+            <a href="/sessions" class="text-purple-400 hover:text-purple-300 text-sm">
+                View All &rarr;
+            </a>
+        </div>
+        <div class="space-y-3">
+            {% for session in recent_sessions %}
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2 h-2 bg-gray-500 rounded-full"></span>
+                            <code class="text-gray-400 text-sm">{{ session.session_id[:8] }}...</code>
+                        </div>
+                        <div class="text-gray-300 mt-1">
+                            <span class="text-gray-500">{{ session.project_path }}</span>
+                        </div>
+                        {% if session.summaries %}
+                        <div class="text-gray-400 text-sm mt-2 truncate-2">
+                            {{ session.summaries[0] }}
+                        </div>
+                        {% endif %}
+                        <div class="text-gray-500 text-xs mt-2">
+                            {{ session.last_activity|format_timestamp }} &middot;
+                            {{ session.message_count }} messages &middot;
+                            {{ session.model_used or 'Unknown' }}
+                        </div>
+                    </div>
+                    <div class="flex space-x-2 ml-4">
+                        <a href="/sessions/{{ session.session_id }}"
+                           class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
+                            View
+                        </a>
+                        <a href="/sessions/{{ session.session_id }}/context"
+                           class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
+                            Context
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

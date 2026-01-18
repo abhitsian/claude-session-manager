@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Export Context - Session {{ session.session_id[:8] }}{% endblock %}
+
+{% block content %}
+<div>
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center space-x-4">
+            <a href="/sessions/{{ session.session_id }}" class="text-gray-400 hover:text-white">&larr; Back to Session</a>
+            <h1 class="text-2xl font-bold">Export Context</h1>
+        </div>
+    </div>
+
+    <!-- Info -->
+    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+        <h2 class="text-lg font-semibold mb-4">Context Continuation Options</h2>
+        <p class="text-gray-400 mb-4">
+            Use these options to continue your work in a new terminal window without losing context.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-gray-900 rounded p-4">
+                <h3 class="font-medium text-purple-400 mb-2">Option A: Paste Context</h3>
+                <p class="text-gray-500 text-sm mb-3">
+                    Copy the context summary below and paste it into a new Claude session to provide background context.
+                </p>
+            </div>
+            <div class="bg-gray-900 rounded p-4">
+                <h3 class="font-medium text-green-400 mb-2">Option B: Resume Command</h3>
+                <p class="text-gray-500 text-sm mb-3">
+                    Try this command to resume the session directly (if supported):
+                </p>
+                <code class="bg-gray-800 px-3 py-2 rounded block text-sm text-green-300">
+                    {{ context.resume_command }}
+                </code>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session Summary -->
+    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Session Summary</h2>
+            <span class="text-gray-500 text-sm">Duration: {{ context.duration_minutes }} minutes</span>
+        </div>
+        <div class="text-gray-300">{{ context.summary }}</div>
+    </div>
+
+    <!-- Pending Todos -->
+    {% if context.pending_todos %}
+    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+        <h2 class="text-lg font-semibold mb-4">Pending Tasks</h2>
+        <ul class="space-y-2">
+            {% for todo in context.pending_todos %}
+            <li class="flex items-start">
+                <span class="text-yellow-500 mr-2">
+                    {% if todo.status == 'in_progress' %}&#9654;{% else %}&#9744;{% endif %}
+                </span>
+                <span class="text-gray-300">{{ todo.content }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Context Prompt -->
+    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Context Prompt</h2>
+            <div class="flex space-x-2">
+                <button onclick="copyContext()" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded text-sm">
+                    Copy to Clipboard
+                </button>
+                <a href="data:text/markdown,{{ context.continuation_prompt|urlencode }}"
+                   download="context-{{ session.session_id[:8] }}.md"
+                   class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm">
+                    Download .md
+                </a>
+            </div>
+        </div>
+        <div id="context-content" class="bg-gray-900 rounded p-4 text-gray-300 text-sm font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">{{ context.continuation_prompt }}</div>
+    </div>
+
+    <!-- Copy notification -->
+    <div id="copy-notification" class="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg hidden">
+        Copied to clipboard!
+    </div>
+</div>
+
+<script>
+function copyContext() {
+    const content = document.getElementById('context-content').textContent;
+    navigator.clipboard.writeText(content).then(() => {
+        const notification = document.getElementById('copy-notification');
+        notification.classList.remove('hidden');
+        setTimeout(() => {
+            notification.classList.add('hidden');
+        }, 2000);
+    });
+}
+</script>
+{% endblock %}
