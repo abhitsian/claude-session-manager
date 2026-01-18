@@ -2,147 +2,149 @@
 
 A web dashboard for viewing and managing your Claude Code terminal sessions.
 
-## The Problem
+## Why This App Exists
 
-When working with Claude Code across multiple terminal windows, managing context becomes challenging:
+**If you use Claude Code heavily, you've probably experienced this:**
 
-- **Lost context**: You start a coding session in one terminal, switch to another for a different task, and forget what you were working on in the first
-- **No visibility**: There's no easy way to see all your active sessions at a glance or browse past conversations
-- **Context switching pain**: Resuming work on a previous session means trying to remember where you left off, what files were changed, and what tasks were pending
-- **Scattered history**: Your Claude Code conversations are stored in JSONL files across `~/.claude/`, but there's no interface to browse them
+You're deep in a coding session in one terminal, helping Claude build a feature. You open another terminal for a quick bug fix. Then another for a different project. Hours later, you have 5 terminals open and can't remember:
+- Which terminal has your main work?
+- What was Claude working on in each session?
+- What files did Claude create or modify?
+- Where did you leave off on that task from yesterday?
 
-If you regularly use Claude Code across multiple projects or terminal windows, you've likely experienced the frustration of losing track of your sessions and struggling to navigate back to previous work.
+**The core problem:** Claude Code sessions are invisible. You can't see what's running, what happened before, or what Claude produced across all your work.
 
-## What About Native Claude Code Features?
+## What This App Does
 
-Claude Code does have built-in session management:
+Open http://localhost:8080 and instantly see:
+
+| Feature | What You Get |
+|---------|--------------|
+| **Active Sessions** | See all running Claude sessions across every terminal window, updated in real-time |
+| **Session History** | Browse all past sessions with message counts, models used, timestamps |
+| **Conversation Viewer** | Read through any session's full conversation - what you asked, what Claude did |
+| **Artifacts Browser** | See every file Claude created or modified, across all sessions, filterable by type |
+| **Context Export** | Generate a summary to paste into a new session and continue where you left off |
+| **Search** | Find any session by searching message content |
+
+## The Real Value
+
+### 1. Never Lose Track of Active Work
+The dashboard shows all active sessions with a green indicator. At a glance, you know what's running where.
+
+### 2. Find What Claude Built
+The Artifacts page shows every file Claude touched - code, configs, documents, scripts. Filter by type. Click to see which session created it. No more hunting through directories wondering "did Claude make this?"
+
+### 3. Resume Any Session Intelligently
+Don't just resume - understand what happened first. Read through the conversation, see pending todos, then export a context summary to continue in a new session with full background.
+
+### 4. Cross-Project Visibility
+Native `/resume` shows one project at a time. This dashboard shows everything - all projects, all sessions, one view.
+
+### 5. Works While You Work
+Auto-refreshes every 10 seconds. Keep it open in a browser tab as a control panel for all your Claude Code work.
+
+## But Wait, Claude Code Has Native Session Management
+
+Yes! And you should use it:
 
 | Native Feature | Command |
 |----------------|---------|
-| Resume last session | `claude --continue` or `-c` |
-| Resume by name | `claude --resume <name>` or `-r` |
-| Interactive picker | `claude --resume` or `/resume` |
-| View stats | `/stats` |
-| Rename session | `/rename <name>` |
-| Export conversation | `/export [filename]` |
+| Resume last session | `claude --continue` |
+| Resume by name | `claude --resume <name>` |
+| Interactive picker | `claude --resume` |
 
-**These work well for single-project workflows.** However, they have limitations:
+**Use native commands for:** Quick session resumption within a single project.
 
-- **No cross-project visibility**: `/resume` shows one project at a time
-- **No unified dashboard**: Can't see all active sessions across terminals at a glance
-- **No content search**: Native search is limited to session names, not message content
-- **No artifact tracking**: No way to see all files/outputs Claude created across sessions
-- **Terminal-bound**: Must be in a terminal to browse sessions
+**Use this dashboard for:** Cross-project visibility, finding what Claude built, understanding session history before resuming, keeping track of multiple active terminals.
 
-## Where This Tool Adds Value
+They complement each other.
 
-Claude Session Manager complements the native features by providing:
-
-- **Cross-project dashboard**: See all sessions from all projects in one view
-- **Visual active session tracking**: Know what's running in every terminal window
-- **Full-text search**: Search across all conversation content
-- **Artifact browser**: View all files, images, and code Claude created (coming soon)
-- **Web-based access**: Browse sessions from any browser, not just the terminal
-- **Context export**: Generate condensed summaries optimized for continuing work
-
-Use native `claude --continue` for quick session resumption. Use this dashboard for cross-project visibility and artifact tracking.
-
-## Screenshots
-
-The dashboard shows active sessions with a green indicator and recent sessions below:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  ACTIVE NOW (2)                                         │
-│  🟢 c28719c6... | /Users/you/project | 2h ago | 248 msgs│
-│  🟢 046f05b5... | /Users/you/other   | 5m ago | 136 msgs│
-├─────────────────────────────────────────────────────────┤
-│  RECENT SESSIONS                                        │
-│  ○ e94a724f... | Jan 12 | 241 msgs | claude-opus-4.5   │
-│  ○ 9d247872... | Jan 11 | 423 msgs | claude-sonnet-4.5 │
-└─────────────────────────────────────────────────────────┘
-```
-
-## Installation
+## Quick Start
 
 ```bash
 git clone https://github.com/abhitsian/claude-session-manager.git
 cd claude-session-manager
 pip install -r requirements.txt
-```
-
-## Usage
-
-Start the server:
-
-```bash
 python -m uvicorn claude_sessions.main:app --reload --port 8080
 ```
 
-Open http://localhost:8080 in your browser.
+Open http://localhost:8080
+
+## Screenshots
+
+### Dashboard
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ACTIVE NOW (2)                          Auto-refreshes     │
+│  🟢 c28719c6... | /project-a | 2h ago | 248 msgs | opus    │
+│  🟢 046f05b5... | /project-b | 5m ago | 136 msgs | sonnet  │
+├─────────────────────────────────────────────────────────────┤
+│  RECENT SESSIONS                                            │
+│  ○ e94a724f... | Jan 12 | 241 msgs | "Todo app feature"    │
+│  ○ 9d247872... | Jan 11 | 423 msgs | "API refactoring"     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Artifacts
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ARTIFACTS                                                  │
+│  [All] [Code] [Document] [Config] [Web] [Shell]            │
+├─────────────────────────────────────────────────────────────┤
+│  📄 api_routes.py      | code   | create | 2h ago          │
+│  📄 README.md          | doc    | edit   | 3h ago          │
+│  📄 config.yaml        | config | create | yesterday       │
+│  📄 setup.sh           | shell  | create | Jan 12          │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## Features
 
 ### Dashboard
-- View active sessions across all terminals
-- Quick stats: total sessions, messages, token usage
-- Recent session list with one-click access
+- Active sessions with real-time status (auto-refreshes)
+- Stats: total sessions, messages, token usage
+- Recent sessions with quick access
 
 ### Session Browser
-- Paginated list of all sessions
-- Search by content or project path
-- Filter by active/inactive status
+- All sessions, paginated
+- Search by content
+- Filter by active/inactive
 
 ### Conversation Viewer
-- Full message history with user/assistant distinction
+- Full message history
 - Tool call indicators
-- Collapsible extended thinking blocks
-- Token usage per message
+- Collapsible thinking blocks
+
+### Artifacts Browser
+- All files Claude created/modified
+- Filter by type (code, document, config, web, shell)
+- See which session created each file
+- Check if file still exists
 
 ### Context Export
-Generate a continuation prompt to resume work in a new session:
-
-```markdown
-# Session Context Continuation
-
-## Original Session
-- Session ID: c28719c6-9910-495d-a57b-59bac975a319
-- Project: /Users/you/project
-- Started: 2026-01-18 02:20
-- Messages: 248 (81 user, 167 assistant)
-
-## Session Summary
-[Summary of work done]
-
-## Pending Tasks
-- [ ] Implement feature X
-- [ ] Fix bug in Y
-
-## Continue From Here
-Please continue working on this session...
-```
-
-Copy this to your clipboard and paste into a new Claude session to provide context.
+Generate a markdown summary for continuing work:
+- Session metadata
+- Work summary
+- Pending todos
+- Recent conversation
+- One-click copy to clipboard
 
 ## How It Works
 
-Claude Code stores all session data in `~/.claude/`:
+Reads directly from `~/.claude/` (read-only):
+- `projects/{project}/{sessionId}.jsonl` - Conversation history
+- `debug/latest` - Active session detection
+- `stats-cache.json` - Usage statistics
+- `todos/{sessionId}.json` - Task lists
 
-| Location | Content |
-|----------|---------|
-| `projects/{project}/{sessionId}.jsonl` | Full conversation history |
-| `history.jsonl` | Global activity log |
-| `debug/latest` | Symlink to active session |
-| `stats-cache.json` | Aggregated usage statistics |
-| `todos/{sessionId}.json` | Task lists per session |
-
-This app reads these files directly (read-only) and presents them in a web interface. No data is modified or sent anywhere.
+No database. No data sent anywhere. Just reads your local Claude Code files.
 
 ## Tech Stack
 
 - **Backend**: Python, FastAPI
-- **Frontend**: Jinja2 templates, Tailwind CSS, HTMX
-- **Data**: Direct JSONL/JSON parsing (no database)
+- **Frontend**: Jinja2, Tailwind CSS, HTMX
+- **Data**: Direct JSONL/JSON parsing
 
 ## License
 
