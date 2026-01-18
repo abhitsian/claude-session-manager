@@ -13,15 +13,39 @@ When working with Claude Code across multiple terminal windows, managing context
 
 If you regularly use Claude Code across multiple projects or terminal windows, you've likely experienced the frustration of losing track of your sessions and struggling to navigate back to previous work.
 
-## The Solution
+## What About Native Claude Code Features?
 
-Claude Session Manager provides a web-based dashboard that reads directly from your Claude Code session data (`~/.claude/`) and gives you:
+Claude Code does have built-in session management:
 
-- **Active session tracking**: See which sessions are currently running across all your terminal windows
-- **Session history**: Browse all past sessions with metadata (date, message count, model used, token usage)
-- **Conversation viewer**: Read through any session's full conversation history
-- **Context export**: Generate a markdown summary of any session that you can paste into a new Claude session to continue where you left off
-- **Search**: Find sessions by content or project path
+| Native Feature | Command |
+|----------------|---------|
+| Resume last session | `claude --continue` or `-c` |
+| Resume by name | `claude --resume <name>` or `-r` |
+| Interactive picker | `claude --resume` or `/resume` |
+| View stats | `/stats` |
+| Rename session | `/rename <name>` |
+| Export conversation | `/export [filename]` |
+
+**These work well for single-project workflows.** However, they have limitations:
+
+- **No cross-project visibility**: `/resume` shows one project at a time
+- **No unified dashboard**: Can't see all active sessions across terminals at a glance
+- **No content search**: Native search is limited to session names, not message content
+- **No artifact tracking**: No way to see all files/outputs Claude created across sessions
+- **Terminal-bound**: Must be in a terminal to browse sessions
+
+## Where This Tool Adds Value
+
+Claude Session Manager complements the native features by providing:
+
+- **Cross-project dashboard**: See all sessions from all projects in one view
+- **Visual active session tracking**: Know what's running in every terminal window
+- **Full-text search**: Search across all conversation content
+- **Artifact browser**: View all files, images, and code Claude created (coming soon)
+- **Web-based access**: Browse sessions from any browser, not just the terminal
+- **Context export**: Generate condensed summaries optimized for continuing work
+
+Use native `claude --continue` for quick session resumption. Use this dashboard for cross-project visibility and artifact tracking.
 
 ## Screenshots
 
