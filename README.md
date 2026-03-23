@@ -2,18 +2,17 @@
 
 The UI for Claude Code.
 
-Claude Code is the most powerful AI coding tool available. But it treats every conversation as disposable. Claude Desk gives you the dashboard, the memory, and the intelligence layer that Claude Code doesn't have.
+## Why This Exists
 
-## The Problem
+Every chat interface has the same fundamental problems. Nobody is fixing them.
 
-Claude Code has no visibility into:
+**Chat is linear. Your thinking isn't.** You start at the top, you end at the bottom. If you want to explore a different direction halfway through, you either pollute the current thread or start over and lose all context. When you're deep in an analysis — evaluating a job offer, designing a system, debugging a problem — you want to explore the comp angle, then go back and explore the career trajectory angle, then compare both. Today you're forced to do this sequentially in one thread, where each tangent degrades the context for everything else. Or you start three separate chats and manually carry context between them. Neither works.
 
-- **What you've done** — Conversations disappear after 30 days. No history, no searchability, no way to find "that analysis I did last month"
-- **What it cost you** — You're spending real money on every session but have zero visibility into per-session cost, daily spend, or which patterns waste tokens
-- **How well you're using it** — Nobody tells you that 60% of your input tokens are pasted content you could have summarized, or that your vague opening prompts cost you 3 extra rounds of clarification each time
-- **How conversations connect** — Every session is an island. You can't see that you've asked the same question across 4 sessions, or that a decision you made in January contradicts what you're doing now
+**Chat systems don't make you better at using them.** A tool like Claude Code is exactly as powerful as the person using it. A great prompt gets a great response. A vague prompt gets a generic response that costs the same amount of money. But nobody is tracking this. Nobody is telling you that your average first message is 40 characters and that sessions where you write 200+ characters need 40% fewer follow-ups. Nobody is pointing out that you paste 7,000 characters of raw content when the relevant 500 would get a better answer at 1/14th the cost. There's no feedback loop. You use the tool the same way on day 300 as day 1. The tool gets more capable with every model update, but you don't get more capable at using it.
 
-Claude Code is a terminal tool. It has no memory of you as a user, no learning across sessions, and no intelligence about your usage patterns. It's like using a car without a dashboard — powerful engine, no instruments.
+**Conversations are disposable.** Claude Code deletes your sessions after 30 days. The analysis you spent an hour building, the decision you carefully reasoned through, the research Claude did across 15 web searches and 8 tool calls — gone. You're left with the outcome but the reasoning that got you there evaporates. This matters because knowledge work is cumulative. The comp analysis from January informs the negotiation in March. The architectural decision from last quarter is the context for this quarter's refactor. When your conversations disappear, you lose the connective tissue between your decisions.
+
+Claude Desk fixes all three problems.
 
 ## What Claude Desk Does
 
