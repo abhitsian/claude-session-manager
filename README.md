@@ -23,12 +23,10 @@ Claude Code deletes conversation files after ~30 days. You can't search across s
 ## Install
 
 ```bash
-git clone https://github.com/abhitsian/claude-desk.git
-cd claude-desk
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/abhitsian/claude-desk/main/get.sh | bash
 ```
 
-This sets up:
+That's it. This:
 - Dashboard server at `http://localhost:8080` (auto-starts on login)
 - Daily archiver cron (runs at 3 AM, saves expiring sessions)
 - Initial archive of all current sessions
