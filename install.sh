@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Claude Session Manager — Install Script
+# Claude Desk — Install Script
 #
 # Sets up:
 #   1. Python dependencies
@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYTHON="$(which python3)"
 PLIST_DIR="$HOME/Library/LaunchAgents"
 
-echo "Claude Session Manager — Install"
+echo "Claude Desk — Install"
 echo "================================"
 echo ""
 echo "Directory: $SCRIPT_DIR"
@@ -29,7 +29,7 @@ pip3 install -q fastapi uvicorn jinja2 python-multipart pydantic pydantic-settin
 echo "  Done."
 
 # 2. Generate dashboard LaunchAgent
-DASHBOARD_PLIST="$PLIST_DIR/com.claude.session-manager.plist"
+DASHBOARD_PLIST="$PLIST_DIR/com.claude.desk.plist"
 echo "Creating dashboard LaunchAgent..."
 
 cat > "$DASHBOARD_PLIST" << EOF
@@ -38,7 +38,7 @@ cat > "$DASHBOARD_PLIST" << EOF
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.claude.session-manager</string>
+    <string>com.claude.desk</string>
     <key>ProgramArguments</key>
     <array>
         <string>$PYTHON</string>
@@ -57,9 +57,9 @@ cat > "$DASHBOARD_PLIST" << EOF
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/claude-session-manager.log</string>
+    <string>/tmp/claude-desk.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/claude-session-manager.err</string>
+    <string>/tmp/claude-desk.err</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
@@ -130,6 +130,6 @@ echo "  Archive:    Runs daily at 3 AM"
 echo "  Data:       ~/.claude/session-archive.db"
 echo ""
 echo "To uninstall:"
-echo "  launchctl unload ~/Library/LaunchAgents/com.claude.session-manager.plist"
+echo "  launchctl unload ~/Library/LaunchAgents/com.claude.desk.plist"
 echo "  launchctl unload ~/Library/LaunchAgents/com.claude.session-archiver.plist"
 echo ""

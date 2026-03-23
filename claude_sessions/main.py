@@ -16,8 +16,8 @@ from .data.history_reader import get_all_session_history
 from .config import settings
 
 app = FastAPI(
-    title="Claude Session Manager",
-    description="View and manage Claude Code sessions",
+    title="Claude Desk",
+    description="View and manage UI for Claude Code",
     version="0.2.0",
 )
 

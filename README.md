@@ -1,6 +1,8 @@
-# Claude Session Manager
+# Claude Desk
 
-A dashboard + intelligence layer for Claude Code. See all your conversations, track costs, get prompting insights, and never lose a session again.
+The UI for Claude Code.
+
+See all your conversations, track costs, get prompting insights, and never lose a session again.
 
 ## The Problem
 
@@ -21,8 +23,8 @@ Claude Code deletes conversation files after ~30 days. You can't search across s
 ## Install
 
 ```bash
-git clone https://github.com/abhitsian/claude-session-manager.git
-cd claude-session-manager
+git clone https://github.com/abhitsian/claude-desk.git
+cd claude-desk
 ./install.sh
 ```
 
@@ -146,9 +148,9 @@ Installed automatically by `install.sh` if you want it (edit `~/.claude/settings
 ## Uninstall
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.claude.session-manager.plist
+launchctl unload ~/Library/LaunchAgents/com.claude.desk.plist
 launchctl unload ~/Library/LaunchAgents/com.claude.session-archiver.plist
-rm ~/Library/LaunchAgents/com.claude.session-manager.plist
+rm ~/Library/LaunchAgents/com.claude.desk.plist
 rm ~/Library/LaunchAgents/com.claude.session-archiver.plist
 ```
 

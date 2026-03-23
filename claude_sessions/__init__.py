@@ -1,1 +1,1 @@
-# Claude Session Manager
+# Claude Desk — the UI for Claude Code
