@@ -2,23 +2,61 @@
 
 The UI for Claude Code.
 
-See all your conversations, track costs, get prompting insights, and never lose a session again.
+Claude Code is the most powerful AI coding tool available. But it treats every conversation as disposable. Claude Desk gives you the dashboard, the memory, and the intelligence layer that Claude Code doesn't have.
 
 ## The Problem
 
-Claude Code deletes conversation files after ~30 days. You can't search across sessions. You don't know what you're spending. You can't see patterns in how you use Claude. Every conversation is a black box that eventually disappears.
+Claude Code has no visibility into:
 
-## What This Does
+- **What you've done** — Conversations disappear after 30 days. No history, no searchability, no way to find "that analysis I did last month"
+- **What it cost you** — You're spending real money on every session but have zero visibility into per-session cost, daily spend, or which patterns waste tokens
+- **How well you're using it** — Nobody tells you that 60% of your input tokens are pasted content you could have summarized, or that your vague opening prompts cost you 3 extra rounds of clarification each time
+- **How conversations connect** — Every session is an island. You can't see that you've asked the same question across 4 sessions, or that a decision you made in January contradicts what you're doing now
 
-**See everything** — All your Claude conversations in one place. Dashboard, timeline, full-text search across every session you've ever had. Sessions that Claude Code deleted are still here.
+Claude Code is a terminal tool. It has no memory of you as a user, no learning across sessions, and no intelligence about your usage patterns. It's like using a car without a dashboard — powerful engine, no instruments.
 
-**Track costs** — Per-session cost breakdown with daily trends. Know exactly what you're spending and which sessions cost the most.
+## What Claude Desk Does
 
-**Get better at prompting** — Analyzes your actual usage patterns and generates a personalized prompting score with actionable recommendations. Detects when you're pasting too much, writing vague prompts, or going in clarification loops.
+### Layer 1: Permanent Record
 
-**Never lose a session** — A daily cron job archives sessions to SQLite before Claude Code deletes them. Full conversation content, tool calls, everything — permanently stored and searchable.
+Every conversation you've ever had, searchable and browsable forever. Claude Code deletes files after 30 days — Claude Desk's daily cron archives them to SQLite before that happens. Full-text search across hundreds of sessions. Timeline view going back to your first session.
 
-**Fork conversations** — Branch from any point in a conversation to explore a different direction without polluting the original thread.
+### Layer 2: Conversation Intelligence
+
+- Chat-style viewer with collapsible threads — collapse a 400-message session into 15 one-line summaries, expand just the one you need
+- Auto-generated titles, summaries, and topic extraction — no more scanning UUIDs
+- Fork from any message to explore a different direction without polluting the original
+- Related sessions detected by topic overlap — "you discussed this before in these 3 sessions"
+- Pasted content detection — knows when you shared a job posting vs. comp data vs. an email
+
+### Layer 3: Cost Intelligence
+
+Per-session cost breakdown, daily trends, most expensive sessions ranked. Know exactly what each conversation cost, see where the money goes, and whether you're getting more efficient over time.
+
+### Layer 4: Prompting Coach
+
+This is the part nobody else has built. Claude Desk analyzes your actual prompting patterns across all sessions and generates:
+
+- A **prompting score** (0-100) based on first-message quality, clarification frequency, paste ratio, and leverage
+- **Personalized recommendations** with before/after examples from your own sessions — not generic tips
+- A **CLAUDE.md playbook** you apply with one click — these rules become part of every future Claude session, making Claude adapt to your style automatically
+- A **prompt enhancer hook** that runs on every message, warning you before you send a vague or wasteful prompt
+
+### The Self-Learning Loop
+
+This is what makes it more than a UI:
+
+```
+You prompt Claude
+  → Hook checks: vague? pasted content? topic you've covered before?
+  → Claude reads your CLAUDE.md rules (generated from your patterns)
+  → Session gets archived + analyzed
+  → Insights engine updates your prompting score
+  → Playbook refines → CLAUDE.md evolves
+  → Next session: Claude is better tuned to how you work
+```
+
+Claude Code gets smarter about YOU over time. Not because Anthropic built it — because your own usage data creates a feedback loop that shapes every future interaction.
 
 ## Install
 
@@ -27,85 +65,12 @@ curl -fsSL https://raw.githubusercontent.com/abhitsian/claude-desk/main/get.sh |
 ```
 
 That's it. This:
-- Dashboard server at `http://localhost:8080` (auto-starts on login)
-- Daily archiver cron (runs at 3 AM, saves expiring sessions)
-- Initial archive of all current sessions
-
-## Features
-
-### Dashboard
-- Active, starred, and recent sessions
-- Auto-generated titles from first message
-- Pasted content detection (job postings, comp data, emails)
-- Star/favorite sessions for quick access
-- Resume any session directly in Terminal
-
-### Timeline
-- Sessions grouped by day
-- Full history going back to your first Claude Code session
-
-### Conversation Viewer
-- Chat-style layout (you on right, Claude on left)
-- Collapsible threads — collapse all to see one-line summaries
-- Markdown rendering with tables, code blocks, headers
-- Tool calls with details (what Claude read, wrote, searched)
-- Fork from any message to explore a different direction
-- Export/copy as markdown
-
-### Insights
-- Total cost with daily bar chart
-- Most expensive sessions ranked
-- Prompting score (0-100) based on your patterns
-- Personalized recommendations with before/after examples
-- "Apply to CLAUDE.md" — one click to inject prompting guidelines into every future session
-- Usage patterns: peak hours, session length distribution, model usage
-
-### Search
-- Full-text search across all sessions (live + archived)
-- SQLite FTS5 — instant results across hundreds of sessions
-
-### Artifacts
-- Every file Claude created or modified
-- Filter by type (code, document, config, web)
-- Track which session created each file
-
-## How It Works
-
-```
-~/.claude/
-├── projects/{project}/{sessionId}.jsonl    ← Live sessions (Claude manages)
-├── history.jsonl                           ← Prompt history (all sessions ever)
-├── session-archive.db                      ← Permanent archive (we manage)
-└── session-search.db                       ← FTS index (we manage)
-```
-
-- The dashboard reads JSONL files directly (read-only)
-- The daily cron archives sessions older than 25 days to SQLite
-- Sessions deleted by Claude Code are served from the archive
-- `history.jsonl` fills in metadata for sessions we never archived
-
-### The Self-Learning Loop
-
-The insights engine analyzes your prompting patterns and generates a personalized playbook. Click "Apply to CLAUDE.md" and these rules become part of every future Claude session:
-
-```
-You type a prompt
-    → Hook checks prompt quality (vague? pasted content? repeated topic?)
-    → Shows suggestions before Claude sees it
-    → Claude reads your CLAUDE.md rules and adapts
-    → Session gets archived + analyzed
-    → Playbook updates → CLAUDE.md evolves
-```
-
-## Prompt Enhancer Hook
-
-An optional Claude Code hook that analyzes your prompts before they go to Claude:
-
-- Warns when prompts are too vague
-- Detects large pasted content without instructions
-- Finds related prior sessions and suggests `/recall`
-
-Installed automatically by `install.sh` if you want it (edit `~/.claude/settings.json` to enable/disable).
+- Clones to `~/.claude-desk`
+- Installs Python dependencies
+- Sets up the dashboard server (auto-starts on login, always running)
+- Sets up the daily archiver (runs at 3 AM, saves expiring sessions)
+- Archives all your current sessions
+- Opens the dashboard at http://localhost:8080
 
 ## Screenshots
 
@@ -136,20 +101,63 @@ Installed automatically by `install.sh` if you want it (edit `~/.claude/settings
 ### Artifacts Browser
 ![Artifacts](screenshots/artifacts.png)
 
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Dashboard** | Active, starred, and recent sessions at a glance |
+| **Timeline** | All sessions grouped by day, going back to your first session |
+| **Full-Text Search** | Instant search across all sessions via SQLite FTS5 |
+| **Conversation Viewer** | Chat-style layout, markdown rendering, collapsible threads |
+| **Auto Titles** | Sessions named from first message, not UUIDs |
+| **Favorites** | Star sessions for quick access |
+| **Fork** | Branch from any message to explore a different direction |
+| **Resume** | One click to open Terminal and resume any session |
+| **Export** | Copy or download any conversation as markdown |
+| **Cost Tracking** | Per-session cost, daily trends, most expensive sessions |
+| **Prompting Score** | 0-100 score based on your actual usage patterns |
+| **Recommendations** | Personalized tips with before/after examples |
+| **CLAUDE.md Playbook** | One-click apply learned rules to every future session |
+| **Prompt Hook** | Real-time analysis before your prompt reaches Claude |
+| **Permanent Archive** | Daily cron saves sessions before Claude Code deletes them |
+| **Pasted Content Detection** | Identifies job postings, comp data, emails, webpages |
+| **Related Sessions** | Topic-based linking across conversations |
+| **Conversation Summaries** | Auto-generated overview of what was discussed |
+| **Artifacts Browser** | Every file Claude created or modified, filterable |
+| **Light/Dark Mode** | Toggle between warm dark and cream light themes |
+
+## How It Works
+
+```
+~/.claude/
+├── projects/{project}/{sessionId}.jsonl    ← Live sessions (Claude manages, deletes after ~30 days)
+├── history.jsonl                           ← Prompt history (all sessions ever, kept by Claude)
+├── session-archive.db                      ← Permanent archive (Claude Desk manages)
+└── session-search.db                       ← FTS index (Claude Desk manages)
+```
+
+- The dashboard reads JSONL files directly (read-only, never modifies Claude's data)
+- The daily cron archives sessions older than 25 days to SQLite before Claude deletes them
+- Deleted sessions are served from the archive transparently
+- `history.jsonl` provides metadata for sessions that were deleted before archiving existed
+
+## Who It's For
+
+Anyone who uses Claude Code as their daily driver — not for one-off questions but as a core productivity tool. PMs, engineers, researchers, founders who have 20+ sessions a week and want to see where their money goes, find what they've discussed before, and get better at using Claude without thinking about it.
+
 ## Tech Stack
 
 - **Backend**: Python, FastAPI, SQLite (FTS5)
 - **Frontend**: Jinja2, Tailwind CSS, HTMX, marked.js
-- **Design**: Editorial aesthetic with Playfair Display + DM Sans
+- **Design**: Editorial aesthetic — Playfair Display + DM Sans, copper/ink palette
 - **No external services**: Everything runs locally, no data leaves your machine
 
 ## Uninstall
 
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.claude.desk.plist
-launchctl unload ~/Library/LaunchAgents/com.claude.session-archiver.plist
-rm ~/Library/LaunchAgents/com.claude.desk.plist
-rm ~/Library/LaunchAgents/com.claude.session-archiver.plist
+launchctl unload ~/Library/LaunchAgents/com.claude.desk-archiver.plist
+rm -rf ~/.claude-desk
 ```
 
 Your archive data stays in `~/.claude/session-archive.db` until you delete it.
