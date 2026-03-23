@@ -3,6 +3,17 @@ from typing import Optional, List, Any
 from pydantic import BaseModel, Field
 
 
+class ToolCallDetail(BaseModel):
+    """Detailed tool call information."""
+
+    name: str
+    id: Optional[str] = None
+    input_summary: Optional[str] = None  # Short summary of inputs
+    file_path: Optional[str] = None  # For file operations
+    command: Optional[str] = None  # For bash operations
+    query: Optional[str] = None  # For search operations
+
+
 class ConversationMessage(BaseModel):
     """A single message in a conversation."""
 
@@ -12,9 +23,11 @@ class ConversationMessage(BaseModel):
     timestamp: datetime
     content: str  # Extracted text content
     tool_calls: List[dict] = Field(default_factory=list)
+    tool_details: List[ToolCallDetail] = Field(default_factory=list)
     thinking: Optional[str] = None
     model: Optional[str] = None
     token_usage: Optional[dict] = None
+    is_sidechain: bool = False
 
 
 class SessionMetadata(BaseModel):
@@ -35,6 +48,10 @@ class SessionMetadata(BaseModel):
     summaries: List[str] = Field(default_factory=list)
     is_active: bool = False
     file_path: Optional[str] = None
+    title: Optional[str] = None
+    first_user_message: Optional[str] = None
+    has_pasted_content: bool = False
+    pasted_content_types: List[str] = Field(default_factory=list)
 
 
 class SessionStats(BaseModel):
@@ -71,6 +88,26 @@ class Artifact(BaseModel):
     size_bytes: int = 0
     mime_type: str = "application/octet-stream"
     exists: bool = True  # Whether file still exists on disk
+
+
+class ConversationThread(BaseModel):
+    """A user question + Claude response grouped as one collapsible thread."""
+
+    thread_id: str
+    user_message: Optional[ConversationMessage] = None
+    assistant_messages: List[ConversationMessage] = Field(default_factory=list)
+    depth: int = 0
+    is_sidechain: bool = False
+    branch_children: List["ConversationThread"] = Field(default_factory=list)
+    parent_thread_id: Optional[str] = None
+
+
+class ConversationTree(BaseModel):
+    """Full conversation as a tree of threads."""
+
+    threads: List[ConversationThread] = Field(default_factory=list)
+    branch_points: int = 0
+    total_messages: int = 0
 
 
 class SessionContext(BaseModel):

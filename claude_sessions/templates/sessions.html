@@ -1,97 +1,86 @@
 {% extends "base.html" %}
 
-{% block title %}All Sessions - Claude Session Manager{% endblock %}
+{% block title %}{% if query %}Search: {{ query }}{% else %}All Sessions{% endif %}{% endblock %}
 
 {% block content %}
 <div>
-    <div class="flex items-center justify-between mb-6">
-        <h1 class="text-2xl font-bold">
+    <div class="flex items-baseline justify-between mb-10 fade-up">
+        <div>
             {% if query %}
-            Search Results for "{{ query }}"
+            <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Search</h1>
+            <p class="text-ink-500 text-sm mt-1">"{{ query }}" &mdash; {{ total }} result{{ 's' if total != 1 }} (searches live + archived)</p>
             {% else %}
-            All Sessions
+            <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Sessions</h1>
+            <p class="text-ink-500 text-sm mt-1">{{ total }} conversations (all history)</p>
             {% endif %}
-        </h1>
-        <span class="text-gray-400">{{ total }} sessions</span>
+        </div>
     </div>
 
     {% if sessions %}
-    <div class="space-y-3">
+    <div>
         {% for session in sessions %}
-        <div class="bg-gray-800 rounded-lg p-4 border {% if session.is_active %}border-green-500/30{% else %}border-gray-700{% endif %} hover:border-gray-600 transition">
+        <a href="/sessions/{{ session.session_id }}" class="session-entry block py-4 group fade-up {% if not loop.last %}border-b border-ink-800/30{% endif %}">
             <div class="flex items-start justify-between">
-                <div class="flex-1">
-                    <div class="flex items-center space-x-2">
-                        <span class="w-2 h-2 {% if session.is_active %}bg-green-500{% else %}bg-gray-500{% endif %} rounded-full"></span>
-                        <code class="{% if session.is_active %}text-green-400{% else %}text-gray-400{% endif %} text-sm">
-                            {{ session.session_id[:8] }}...
-                        </code>
-                        {% if session.is_active %}
-                        <span class="bg-green-600 text-xs px-2 py-0.5 rounded">Active</span>
+                <div class="flex items-start gap-3 flex-1 min-w-0">
+                    <button onclick="event.preventDefault(); toggleFav('{{ session.session_id }}', this)"
+                            class="star-btn text-sm mt-0.5 {% if session.session_id in fav_ids %}active{% endif %}">{% if session.session_id in fav_ids %}&#9733;{% else %}&#9734;{% endif %}</button>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            {% if session.is_active %}
+                            <span class="w-1.5 h-1.5 rounded-full bg-sage-400 live-dot shrink-0"></span>
+                            {% endif %}
+                            <span class="text-ink-100 font-medium group-hover:text-copper-400 transition-colors truncate">{{ session.title or session.session_id[:8] }}</span>
+                            <span class="font-mono text-[10px] text-ink-700">{{ session.session_id[:8] }}</span>
+                        </div>
+                        {% if session.summaries %}
+                        <div class="text-ink-400 text-sm mt-1 truncate-2 leading-relaxed">{{ session.summaries[0] }}</div>
                         {% endif %}
-                    </div>
-                    <div class="text-gray-300 mt-1">
-                        <span class="text-gray-500">{{ session.project_path }}</span>
-                    </div>
-                    {% if session.summaries %}
-                    <div class="text-gray-400 text-sm mt-2 truncate-2">
-                        {{ session.summaries[0] }}
-                    </div>
-                    {% endif %}
-                    <div class="flex items-center space-x-4 text-gray-500 text-xs mt-2">
-                        <span>{{ session.start_time.strftime('%Y-%m-%d %H:%M') }}</span>
-                        <span>{{ session.message_count }} messages</span>
-                        <span>{{ session.model_used or 'Unknown model' }}</span>
-                        {% if session.total_input_tokens %}
-                        <span>{{ ((session.total_input_tokens + session.total_output_tokens) / 1000)|round|int }}K tokens</span>
-                        {% endif %}
+                        <div class="flex items-center gap-2 mt-1.5 text-xs text-ink-500">
+                            <span>{{ session.start_time.strftime('%b %d, %H:%M') }}</span>
+                            <span class="text-ink-700">/</span>
+                            <span>{{ session.message_count }} msgs</span>
+                            <span class="text-ink-700">/</span>
+                            <span class="font-mono text-ink-600">{{ session.model_used or '?' }}</span>
+                            {% if session.total_input_tokens %}
+                            <span class="text-ink-700">/</span>
+                            <span>{{ ((session.total_input_tokens + session.total_output_tokens) / 1000)|round|int }}K tokens</span>
+                            {% endif %}
+                            {% if session.has_pasted_content %}
+                            {% for ptype in session.pasted_content_types %}
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400">{{ ptype }}</span>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
-                <div class="flex space-x-2 ml-4">
-                    <a href="/sessions/{{ session.session_id }}"
-                       class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
-                        View
-                    </a>
-                    <a href="/sessions/{{ session.session_id }}/context"
-                       class="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-sm">
-                        Context
-                    </a>
-                </div>
+                <button onclick="event.preventDefault(); copyResume('{{ session.session_id }}')"
+                        class="text-xs text-ink-500 hover:text-copper-400 font-mono px-2 py-1 rounded border border-ink-800/50 hover:border-copper-500/30 transition-all opacity-0 group-hover:opacity-100 ml-4 shrink-0">
+                    resume
+                </button>
             </div>
-        </div>
+        </a>
         {% endfor %}
     </div>
 
-    <!-- Pagination -->
     {% if total_pages > 1 %}
-    <div class="flex justify-center space-x-2 mt-8">
+    <div class="flex justify-center items-center gap-4 mt-10">
         {% if page > 1 %}
         <a href="?page={{ page - 1 }}{% if query %}&q={{ query }}{% endif %}"
-           class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">
-            Previous
-        </a>
+           class="text-sm text-ink-400 hover:text-copper-400 transition-colors">&larr; Previous</a>
         {% endif %}
-
-        <span class="bg-gray-800 px-4 py-2 rounded text-gray-400">
-            Page {{ page }} of {{ total_pages }}
-        </span>
-
+        <span class="text-ink-600 text-xs font-mono">{{ page }} / {{ total_pages }}</span>
         {% if page < total_pages %}
         <a href="?page={{ page + 1 }}{% if query %}&q={{ query }}{% endif %}"
-           class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">
-            Next
-        </a>
+           class="text-sm text-ink-400 hover:text-copper-400 transition-colors">Next &rarr;</a>
         {% endif %}
     </div>
     {% endif %}
 
     {% else %}
-    <div class="text-center py-12 text-gray-500">
-        {% if query %}
-        No sessions found matching "{{ query }}"
-        {% else %}
-        No sessions found
-        {% endif %}
+    <div class="text-center py-20">
+        <p class="text-ink-600 font-display text-lg italic">
+            {% if query %}No sessions matching "{{ query }}"{% else %}No sessions yet{% endif %}
+        </p>
     </div>
     {% endif %}
 </div>

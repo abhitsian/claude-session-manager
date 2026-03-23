@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Insights{% endblock %}
+
+{% block content %}
+<div>
+    <div class="flex items-baseline justify-between mb-10 fade-up">
+        <div>
+            <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Insights</h1>
+            <p class="text-ink-500 text-sm mt-1">Cost tracking, prompting patterns, and recommendations</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/insights?days=7" class="btn-action {% if days == 7 %}btn-primary{% endif %}">7d</a>
+            <a href="/insights?days=30" class="btn-action {% if days == 30 %}btn-primary{% endif %}">30d</a>
+            <a href="/insights?days=90" class="btn-action {% if days == 90 %}btn-primary{% endif %}">90d</a>
+            <a href="/insights?days=9999" class="btn-action {% if days == 9999 %}btn-primary{% endif %}">All</a>
+        </div>
+    </div>
+
+    <!-- Cost Overview -->
+    <section class="mb-12 fade-up">
+        <h2 class="font-display text-lg font-semibold text-ink-100 mb-6">Cost</h2>
+        <div class="flex items-baseline gap-12 mb-6">
+            <div>
+                <span class="font-display text-4xl font-semibold text-copper-400">${{ "%.2f"|format(costs.total_cost) }}</span>
+                <span class="text-ink-500 text-sm ml-2">total ({{ costs.session_count }} sessions)</span>
+            </div>
+            <div>
+                <span class="font-display text-2xl text-ink-200">${{ "%.2f"|format(costs.avg_per_session) }}</span>
+                <span class="text-ink-500 text-sm ml-2">avg / session</span>
+            </div>
+        </div>
+
+        {% if costs.daily_costs %}
+        <div class="flex items-end gap-1 h-24 mb-2">
+            {% set max_daily = costs.daily_costs.values()|max if costs.daily_costs else 1 %}
+            {% for day, cost in costs.daily_costs.items() %}
+            <div class="flex-1 group relative">
+                <div class="bg-copper-500/30 hover:bg-copper-500/50 transition-colors rounded-t"
+                     style="height: {{ (cost / max_daily * 80)|int }}px; min-height: 2px;"></div>
+                <div class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-ink-800 text-ink-200 text-xs px-2 py-1 rounded hidden group-hover:block whitespace-nowrap border border-ink-700/50">
+                    ${{ "%.2f"|format(cost) }} &middot; {{ day }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="flex gap-1 text-[9px] text-ink-600 font-mono">
+            {% for day in costs.daily_costs.keys() %}
+            <div class="flex-1 text-center">{{ day[5:] }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- Most Expensive Sessions -->
+    {% if costs.most_expensive %}
+    <section class="mb-12 fade-up">
+        <h2 class="font-display text-lg font-semibold text-ink-100 mb-4">Most Expensive Sessions</h2>
+        {% for s in costs.most_expensive %}
+        <a href="/sessions/{{ s.session_id }}" class="session-entry block py-3 group {% if not loop.last %}border-b border-ink-800/30{% endif %}">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <span class="font-display text-lg font-semibold text-copper-400 w-16 text-right">${{ "%.2f"|format(s.cost) }}</span>
+                    <span class="text-ink-200 truncate group-hover:text-copper-400 transition-colors">{{ s.title or s.session_id[:8] }}</span>
+                </div>
+                <span class="text-ink-600 text-xs font-mono ml-4">{{ (s.tokens / 1000)|round|int }}K tokens</span>
+            </div>
+        </a>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- Prompting Score + Playbook -->
+    {% if playbook %}
+    <section class="mb-12 fade-up">
+        <div class="flex items-baseline justify-between mb-6">
+            <h2 class="font-display text-lg font-semibold text-ink-100">Prompting Score</h2>
+            <div class="flex items-baseline gap-2">
+                <span class="font-display text-4xl font-semibold {% if playbook.score >= 75 %}text-sage-400{% elif playbook.score >= 50 %}text-copper-400{% else %}text-red-400{% endif %}">{{ playbook.score }}</span>
+                <span class="text-ink-500 text-sm">/ 100</span>
+            </div>
+        </div>
+
+        <!-- Metrics -->
+        {% if playbook.metrics %}
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+            <div>
+                <span class="font-display text-2xl text-ink-100">{{ playbook.metrics.avg_first_msg_length }}</span>
+                <p class="text-ink-500 text-xs mt-0.5">avg first msg chars</p>
+            </div>
+            <div>
+                <span class="font-display text-2xl text-ink-100">{{ playbook.metrics.avg_clarifications }}</span>
+                <p class="text-ink-500 text-xs mt-0.5">avg clarification rounds</p>
+            </div>
+            <div>
+                <span class="font-display text-2xl text-ink-100">{{ playbook.metrics.avg_paste_ratio }}%</span>
+                <p class="text-ink-500 text-xs mt-0.5">pasted content ratio</p>
+            </div>
+            <div>
+                <span class="font-display text-2xl text-ink-100">{{ playbook.metrics.high_leverage_pct }}%</span>
+                <p class="text-ink-500 text-xs mt-0.5">high-leverage sessions</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Recommendations -->
+        <h3 class="text-xs text-ink-500 uppercase tracking-wider mb-4">Recommendations</h3>
+        {% for rec in playbook.recommendations %}
+        <div class="mb-5 {% if rec.impact == 'positive' %}border-l-2 border-sage-500/30{% elif rec.impact == 'high' %}border-l-2 border-copper-500/40{% else %}border-l-2 border-ink-600/30{% endif %} pl-4">
+            <div class="flex items-center gap-2 mb-1">
+                <h4 class="text-ink-100 text-sm font-semibold">{{ rec.title }}</h4>
+                {% if rec.impact == 'positive' %}
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-sage-500/10 text-sage-400">strength</span>
+                {% elif rec.impact == 'high' %}
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400">high impact</span>
+                {% elif rec.impact == 'medium' %}
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-700/50 text-ink-400">tip</span>
+                {% endif %}
+            </div>
+            <p class="text-ink-400 text-sm leading-relaxed">{{ rec.description }}</p>
+            {% if rec.action is defined and rec.action %}
+            <p class="text-ink-300 text-sm mt-1.5">{{ rec.action }}</p>
+            {% endif %}
+            {% if rec.example is defined and rec.example %}
+            <pre class="mt-2 text-xs text-ink-500 bg-ink-900/50 rounded px-3 py-2 whitespace-pre-wrap border border-ink-800/30">{{ rec.example }}</pre>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <!-- Apply to CLAUDE.md -->
+        {% if playbook.claude_md_block %}
+        <div class="mt-8 border border-copper-500/20 rounded-lg p-5 bg-copper-500/3">
+            <div class="flex items-start justify-between mb-3">
+                <div>
+                    <h3 class="text-ink-100 text-sm font-semibold">Auto-apply to your sessions</h3>
+                    <p class="text-ink-500 text-xs mt-0.5">Add these guidelines to your CLAUDE.md so they apply to every future conversation</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="copyPlaybook()" class="btn-action">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        Copy
+                    </button>
+                    <button onclick="applyPlaybook()" class="btn-action btn-primary">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Apply to CLAUDE.md
+                    </button>
+                </div>
+            </div>
+            <pre id="playbook-content" class="text-xs text-ink-400 bg-ink-900/50 rounded px-3 py-2 whitespace-pre-wrap border border-ink-800/30 max-h-48 overflow-y-auto">{{ playbook.claude_md_block }}</pre>
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <!-- Usage Patterns -->
+    <section class="mb-12 fade-up">
+        <h2 class="font-display text-lg font-semibold text-ink-100 mb-4">Patterns</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+                <span class="font-display text-2xl text-ink-100">{{ patterns.total_sessions }}</span>
+                <p class="text-ink-500 text-xs mt-0.5">total sessions</p>
+            </div>
+            <div>
+                <span class="font-display text-2xl text-ink-100">{{ patterns.peak_day }}</span>
+                <p class="text-ink-500 text-xs mt-0.5">busiest day</p>
+            </div>
+            <div>
+                <span class="font-display text-2xl text-ink-100">{{ patterns.peak_hour }}:00</span>
+                <p class="text-ink-500 text-xs mt-0.5">peak hour</p>
+            </div>
+            <div>
+                <span class="font-display text-2xl text-ink-100">{{ patterns.paste_frequency }}</span>
+                <p class="text-ink-500 text-xs mt-0.5">sessions with pasted content</p>
+            </div>
+        </div>
+
+        <div class="mt-6 flex items-center gap-4">
+            <span class="text-ink-500 text-xs w-20">Length</span>
+            {% set total_s = patterns.session_length.short + patterns.session_length.medium + patterns.session_length.long %}
+            {% if total_s > 0 %}
+            <div class="flex-1 flex h-3 rounded overflow-hidden gap-px">
+                <div class="bg-sage-500/40 rounded-l" style="width: {{ (patterns.session_length.short / total_s * 100)|int }}%"></div>
+                <div class="bg-copper-500/40" style="width: {{ (patterns.session_length.medium / total_s * 100)|int }}%"></div>
+                <div class="bg-copper-400/60 rounded-r" style="width: {{ (patterns.session_length.long / total_s * 100)|int }}%"></div>
+            </div>
+            <div class="flex gap-3 text-xs text-ink-500">
+                <span>{{ patterns.session_length.short }} short</span>
+                <span>{{ patterns.session_length.medium }} mid</span>
+                <span>{{ patterns.session_length.long }} long</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="mt-4 flex items-center gap-4">
+            <span class="text-ink-500 text-xs w-20">Models</span>
+            <div class="flex gap-3 text-xs">
+                {% for model, count in patterns.model_usage.items() %}
+                <span class="text-ink-400"><span class="font-mono text-ink-300">{{ model }}</span> {{ count }}x</span>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <!-- Per-Session Cost Table -->
+    <section class="mb-12 fade-up">
+        <h2 class="font-display text-lg font-semibold text-ink-100 mb-4">Session Costs</h2>
+        <div class="text-sm">
+            <div class="flex items-center gap-4 py-2 text-xs text-ink-500 border-b border-ink-700/30">
+                <span class="w-16 text-right">Cost</span>
+                <span class="flex-1">Session</span>
+                <span class="w-20 text-right">Input</span>
+                <span class="w-20 text-right">Output</span>
+                <span class="w-16 text-right">Date</span>
+            </div>
+            {% for s in session_costs[:20] %}
+            <a href="/sessions/{{ s.session_id }}" class="flex items-center gap-4 py-2 session-entry group {% if not loop.last %}border-b border-ink-800/20{% endif %}">
+                <span class="w-16 text-right font-mono text-copper-400 text-xs">${{ "%.2f"|format(s.total_cost) }}</span>
+                <span class="flex-1 text-ink-200 truncate group-hover:text-copper-400 transition-colors">{{ s.title or s.session_id[:8] }}</span>
+                <span class="w-20 text-right text-ink-500 text-xs font-mono">{{ (s.input_tokens / 1000)|round|int }}K</span>
+                <span class="w-20 text-right text-ink-500 text-xs font-mono">{{ (s.output_tokens / 1000)|round|int }}K</span>
+                <span class="w-16 text-right text-ink-600 text-xs">{{ s.date }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<script>
+function copyPlaybook() {
+    const content = document.getElementById('playbook-content').textContent;
+    navigator.clipboard.writeText(content).then(() => showToast('Playbook copied to clipboard'));
+}
+
+function applyPlaybook() {
+    const content = document.getElementById('playbook-content').textContent;
+    fetch('/api/apply-playbook', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ content: content })
+    }).then(r => r.json()).then(data => {
+        if (data.ok) showToast('Applied to CLAUDE.md');
+        else showToast('Failed: ' + (data.error || 'unknown'));
+    }).catch(() => showToast('Failed to apply'));
+}
+</script>
+{% endblock %}

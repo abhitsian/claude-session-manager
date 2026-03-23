@@ -1,130 +1,158 @@
 # Claude Session Manager
 
-A web dashboard for viewing and managing your Claude Code terminal sessions.
+A dashboard + intelligence layer for Claude Code. See all your conversations, track costs, get prompting insights, and never lose a session again.
 
-## Why This App Exists
+## The Problem
 
-**If you use Claude Code heavily, you've probably experienced this:**
+Claude Code deletes conversation files after ~30 days. You can't search across sessions. You don't know what you're spending. You can't see patterns in how you use Claude. Every conversation is a black box that eventually disappears.
 
-You're deep in a coding session in one terminal, helping Claude build a feature. You open another terminal for a quick bug fix. Then another for a different project. Hours later, you have 5 terminals open and can't remember:
-- Which terminal has your main work?
-- What was Claude working on in each session?
-- What files did Claude create or modify?
-- Where did you leave off on that task from yesterday?
+## What This Does
 
-**The core problem:** Claude Code sessions are invisible. You can't see what's running, what happened before, or what Claude produced across all your work.
+**See everything** — All your Claude conversations in one place. Dashboard, timeline, full-text search across every session you've ever had. Sessions that Claude Code deleted are still here.
 
-## What This App Does
+**Track costs** — Per-session cost breakdown with daily trends. Know exactly what you're spending and which sessions cost the most.
 
-Open http://localhost:8080 and instantly see:
+**Get better at prompting** — Analyzes your actual usage patterns and generates a personalized prompting score with actionable recommendations. Detects when you're pasting too much, writing vague prompts, or going in clarification loops.
 
-| Feature | What You Get |
-|---------|--------------|
-| **Active Sessions** | See all running Claude sessions across every terminal window, updated in real-time |
-| **Session History** | Browse all past sessions with message counts, models used, timestamps |
-| **Conversation Viewer** | Read through any session's full conversation - what you asked, what Claude did |
-| **Artifacts Browser** | See every file Claude created or modified, across all sessions, filterable by type |
-| **Context Export** | Generate a summary to paste into a new session and continue where you left off |
-| **Search** | Find any session by searching message content |
+**Never lose a session** — A daily cron job archives sessions to SQLite before Claude Code deletes them. Full conversation content, tool calls, everything — permanently stored and searchable.
 
-## The Real Value
+**Fork conversations** — Branch from any point in a conversation to explore a different direction without polluting the original thread.
 
-### 1. Never Lose Track of Active Work
-The dashboard shows all active sessions with a green indicator. At a glance, you know what's running where.
-
-### 2. Find What Claude Built
-The Artifacts page shows every file Claude touched - code, configs, documents, scripts. Filter by type. Click to see which session created it. No more hunting through directories wondering "did Claude make this?"
-
-### 3. Resume Any Session Intelligently
-Don't just resume - understand what happened first. Read through the conversation, see pending todos, then export a context summary to continue in a new session with full background.
-
-### 4. Cross-Project Visibility
-Native `/resume` shows one project at a time. This dashboard shows everything - all projects, all sessions, one view.
-
-### 5. Works While You Work
-Auto-refreshes every 10 seconds. Keep it open in a browser tab as a control panel for all your Claude Code work.
-
-## But Wait, Claude Code Has Native Session Management
-
-Yes! And you should use it:
-
-| Native Feature | Command |
-|----------------|---------|
-| Resume last session | `claude --continue` |
-| Resume by name | `claude --resume <name>` |
-| Interactive picker | `claude --resume` |
-
-**Use native commands for:** Quick session resumption within a single project.
-
-**Use this dashboard for:** Cross-project visibility, finding what Claude built, understanding session history before resuming, keeping track of multiple active terminals.
-
-They complement each other.
-
-## Quick Start
+## Install
 
 ```bash
 git clone https://github.com/abhitsian/claude-session-manager.git
 cd claude-session-manager
-pip install -r requirements.txt
-python -m uvicorn claude_sessions.main:app --reload --port 8080
+./install.sh
 ```
 
-Open http://localhost:8080
+This sets up:
+- Dashboard server at `http://localhost:8080` (auto-starts on login)
+- Daily archiver cron (runs at 3 AM, saves expiring sessions)
+- Initial archive of all current sessions
+
+## Features
+
+### Dashboard
+- Active, starred, and recent sessions
+- Auto-generated titles from first message
+- Pasted content detection (job postings, comp data, emails)
+- Star/favorite sessions for quick access
+- Resume any session directly in Terminal
+
+### Timeline
+- Sessions grouped by day
+- Full history going back to your first Claude Code session
+
+### Conversation Viewer
+- Chat-style layout (you on right, Claude on left)
+- Collapsible threads — collapse all to see one-line summaries
+- Markdown rendering with tables, code blocks, headers
+- Tool calls with details (what Claude read, wrote, searched)
+- Fork from any message to explore a different direction
+- Export/copy as markdown
+
+### Insights
+- Total cost with daily bar chart
+- Most expensive sessions ranked
+- Prompting score (0-100) based on your patterns
+- Personalized recommendations with before/after examples
+- "Apply to CLAUDE.md" — one click to inject prompting guidelines into every future session
+- Usage patterns: peak hours, session length distribution, model usage
+
+### Search
+- Full-text search across all sessions (live + archived)
+- SQLite FTS5 — instant results across hundreds of sessions
+
+### Artifacts
+- Every file Claude created or modified
+- Filter by type (code, document, config, web)
+- Track which session created each file
+
+## How It Works
+
+```
+~/.claude/
+├── projects/{project}/{sessionId}.jsonl    ← Live sessions (Claude manages)
+├── history.jsonl                           ← Prompt history (all sessions ever)
+├── session-archive.db                      ← Permanent archive (we manage)
+└── session-search.db                       ← FTS index (we manage)
+```
+
+- The dashboard reads JSONL files directly (read-only)
+- The daily cron archives sessions older than 25 days to SQLite
+- Sessions deleted by Claude Code are served from the archive
+- `history.jsonl` fills in metadata for sessions we never archived
+
+### The Self-Learning Loop
+
+The insights engine analyzes your prompting patterns and generates a personalized playbook. Click "Apply to CLAUDE.md" and these rules become part of every future Claude session:
+
+```
+You type a prompt
+    → Hook checks prompt quality (vague? pasted content? repeated topic?)
+    → Shows suggestions before Claude sees it
+    → Claude reads your CLAUDE.md rules and adapts
+    → Session gets archived + analyzed
+    → Playbook updates → CLAUDE.md evolves
+```
+
+## Prompt Enhancer Hook
+
+An optional Claude Code hook that analyzes your prompts before they go to Claude:
+
+- Warns when prompts are too vague
+- Detects large pasted content without instructions
+- Finds related prior sessions and suggests `/recall`
+
+Installed automatically by `install.sh` if you want it (edit `~/.claude/settings.json` to enable/disable).
 
 ## Screenshots
 
 ### Dashboard
 ![Dashboard](screenshots/dashboard.png)
 
-### Artifacts
-![Artifacts](screenshots/artifacts.png)
+### Dashboard (Light Mode)
+![Dashboard Light](screenshots/dashboard-light.png)
 
-## Features
+### Timeline
+![Timeline](screenshots/timeline.png)
 
-### Dashboard
-- Active sessions with real-time status (auto-refreshes)
-- Stats: total sessions, messages, token usage
-- Recent sessions with quick access
+### Session Detail
+![Session Detail](screenshots/session-detail.png)
 
-### Session Browser
-- All sessions, paginated
-- Search by content
-- Filter by active/inactive
+### Chat-Style Conversation Viewer
+![Conversation](screenshots/conversation.png)
 
-### Conversation Viewer
-- Full message history
-- Tool call indicators
-- Collapsible thinking blocks
+### Collapsible Threads
+![Collapsed](screenshots/collapsed.png)
+
+### Insights & Cost Tracking
+![Insights](screenshots/insights.png)
+
+### Prompting Score & Recommendations
+![Prompting Score](screenshots/prompting-score.png)
 
 ### Artifacts Browser
-- All files Claude created/modified
-- Filter by type (code, document, config, web, shell)
-- See which session created each file
-- Check if file still exists
-
-### Context Export
-Generate a markdown summary for continuing work:
-- Session metadata
-- Work summary
-- Pending todos
-- Recent conversation
-- One-click copy to clipboard
-
-## How It Works
-
-Reads directly from `~/.claude/` (read-only):
-- `projects/{project}/{sessionId}.jsonl` - Conversation history
-- `debug/latest` - Active session detection
-- `stats-cache.json` - Usage statistics
-- `todos/{sessionId}.json` - Task lists
-
-No database. No data sent anywhere. Just reads your local Claude Code files.
+![Artifacts](screenshots/artifacts.png)
 
 ## Tech Stack
 
-- **Backend**: Python, FastAPI
-- **Frontend**: Jinja2, Tailwind CSS, HTMX
-- **Data**: Direct JSONL/JSON parsing
+- **Backend**: Python, FastAPI, SQLite (FTS5)
+- **Frontend**: Jinja2, Tailwind CSS, HTMX, marked.js
+- **Design**: Editorial aesthetic with Playfair Display + DM Sans
+- **No external services**: Everything runs locally, no data leaves your machine
+
+## Uninstall
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.claude.session-manager.plist
+launchctl unload ~/Library/LaunchAgents/com.claude.session-archiver.plist
+rm ~/Library/LaunchAgents/com.claude.session-manager.plist
+rm ~/Library/LaunchAgents/com.claude.session-archiver.plist
+```
+
+Your archive data stays in `~/.claude/session-archive.db` until you delete it.
 
 ## License
 

@@ -1,10 +1,94 @@
 import json
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Iterator, Dict, Any
+from typing import Optional, List, Iterator, Dict, Any, Tuple
 
 from ..config import settings
-from .models import SessionMetadata, ConversationMessage, SessionStats, TodoItem
+from .models import SessionMetadata, ConversationMessage, SessionStats, TodoItem, ToolCallDetail, ConversationThread, ConversationTree
+
+# Patterns that indicate pasted/external content
+PASTE_INDICATORS = [
+    (r"skip to main content", "webpage"),
+    (r"posted on\s+posted \d+", "job posting"),
+    (r"job requisition id", "job posting"),
+    (r"©\s*\d{4}", "webpage"),
+    (r"terms of use.*privacy.*security", "webpage"),
+    (r"log\s*out\s*\n.*home", "portal/dashboard"),
+    (r"net\s*benefits|fidelity|vesting|rsus?|restricted.*(stock|unit)", "compensation data"),
+    (r"annual.*(salary|bonus|base)", "compensation data"),
+    (r"granted.*units|outstanding.*units", "stock/equity data"),
+    (r"from:.*\nto:.*\nsubject:", "email"),
+    (r"sent:.*\n.*subject:", "email"),
+]
+
+
+def _detect_pasted_content(text: str) -> List[str]:
+    """Detect if a message contains pasted external content."""
+    types = set()
+    lower = text.lower()
+
+    # Long messages (>500 chars) with structured content are likely pastes
+    if len(text) > 1000:
+        for pattern, content_type in PASTE_INDICATORS:
+            if re.search(pattern, lower):
+                types.add(content_type)
+
+    # Very long messages are almost certainly pasted
+    if len(text) > 3000 and not types:
+        types.add("long text")
+
+    return list(types)
+
+
+def _generate_title(first_message: str) -> str:
+    """Generate a readable title from the first user message."""
+    # Clean up the message
+    text = first_message.strip()
+
+    # Handle Claude Code command messages like <command-message>standup</command-message>
+    cmd_match = re.search(r"<command-name>/(\w+)</command-name>", text)
+    if cmd_match:
+        return f"/{cmd_match.group(1)}"
+
+    # Remove XML-like tags
+    text = re.sub(r"<[^>]+>", "", text).strip()
+
+    # Remove pasted content — take just the user's instruction part
+    # Usually the user's actual question is at the start before pasted content
+    lines = text.split("\n")
+
+    # Take first meaningful line(s) up to ~120 chars
+    title_parts = []
+    char_count = 0
+    for line in lines:
+        line = line.strip()
+        if not line:
+            if title_parts:
+                break
+            continue
+        # Skip lines that look like pasted webpage content
+        if any(
+            indicator in line.lower()
+            for indicator in ["skip to main", "sign in", "search for", "©", "posted on"]
+        ):
+            break
+        title_parts.append(line)
+        char_count += len(line)
+        if char_count > 120:
+            break
+
+    title = " ".join(title_parts)
+
+    # Truncate if still too long
+    if len(title) > 80:
+        title = title[:77] + "..."
+
+    # If we couldn't extract a good title, use a truncated version
+    if not title or len(title) < 3:
+        title = text[:77] + "..." if len(text) > 80 else text
+
+    return title
 
 
 class SessionParser:
@@ -79,6 +163,20 @@ class SessionParser:
             if not project_path.startswith("/"):
                 project_path = "/" + project_path
 
+            # Generate title from first user message
+            user_messages = [m for m in messages if m.type == "user"]
+            first_user_msg = user_messages[0].content if user_messages else ""
+            title = _generate_title(first_user_msg) if first_user_msg else None
+
+            # Detect pasted content across all user messages
+            all_paste_types: set = set()
+            has_pasted = False
+            for m in user_messages:
+                ptypes = _detect_pasted_content(m.content)
+                if ptypes:
+                    has_pasted = True
+                    all_paste_types.update(ptypes)
+
             return SessionMetadata(
                 session_id=file_path.stem,
                 project_path=project_path,
@@ -92,6 +190,10 @@ class SessionParser:
                 total_output_tokens=total_output,
                 summaries=summaries[:3],  # Keep first 3 summaries
                 file_path=str(file_path),
+                title=title,
+                first_user_message=first_user_msg[:500] if first_user_msg else None,
+                has_pasted_content=has_pasted,
+                pasted_content_types=list(all_paste_types),
             )
         except Exception as e:
             print(f"Error parsing {file_path}: {e}")
@@ -131,6 +233,7 @@ class SessionParser:
         # Extract content
         content = ""
         tool_calls = []
+        tool_details = []
         thinking = None
         model = None
         token_usage = None
@@ -150,12 +253,19 @@ class SessionParser:
                         if block.get("type") == "text":
                             text_parts.append(block.get("text", ""))
                         elif block.get("type") == "tool_use":
+                            tool_name = block.get("name", "")
+                            tool_input = block.get("input", {})
                             tool_calls.append(
                                 {
-                                    "name": block.get("name"),
+                                    "name": tool_name,
                                     "id": block.get("id"),
                                 }
                             )
+                            # Extract rich tool details
+                            detail = self._extract_tool_detail(
+                                tool_name, tool_input, block.get("id")
+                            )
+                            tool_details.append(detail)
                         elif block.get("type") == "thinking":
                             thinking = block.get("thinking", "")
                 content = "\n".join(text_parts)
@@ -176,13 +286,71 @@ class SessionParser:
             timestamp=timestamp,
             content=content,
             tool_calls=tool_calls,
+            tool_details=tool_details,
             thinking=thinking,
             model=model,
             token_usage=token_usage,
+            is_sidechain=obj.get("isSidechain", False),
+        )
+
+    def _extract_tool_detail(
+        self, name: str, input_data: Any, tool_id: Optional[str] = None
+    ) -> ToolCallDetail:
+        """Extract a readable summary from a tool_use block."""
+        if not isinstance(input_data, dict):
+            return ToolCallDetail(name=name, id=tool_id)
+
+        file_path = input_data.get("file_path") or input_data.get("path")
+        command = input_data.get("command")
+        query = input_data.get("query") or input_data.get("pattern")
+
+        # Build a short summary based on tool type
+        summary = None
+        if name == "Read":
+            summary = f"Read {file_path}" if file_path else None
+        elif name == "Write":
+            summary = f"Write {file_path}" if file_path else None
+        elif name == "Edit":
+            old = input_data.get("old_string", "")
+            summary = f"Edit {file_path}" if file_path else None
+            if old:
+                summary += f" (replacing {len(old)} chars)"
+        elif name == "Bash":
+            desc = input_data.get("description", "")
+            summary = desc or (command[:80] + "..." if command and len(command) > 80 else command)
+        elif name == "Grep":
+            summary = f"Search for '{query}'" if query else None
+        elif name == "Glob":
+            summary = f"Find files: {query}" if query else None
+        elif name == "Agent":
+            desc = input_data.get("description", "")
+            summary = f"Agent: {desc}" if desc else None
+        elif name == "WebSearch":
+            summary = f"Search: {query}" if query else None
+        elif name == "WebFetch":
+            url = input_data.get("url", "")
+            summary = f"Fetch: {url[:60]}" if url else None
+        elif name.startswith("mcp__"):
+            # Generic MCP tool: extract the last segment as a readable name
+            parts = name.split("__")
+            service = parts[2] if len(parts) > 2 else parts[-1]
+            action = parts[-1] if len(parts) > 3 else ""
+            summary = f"{service}: {action}" if action and action != service else service
+        else:
+            # Generic: try to build something useful
+            summary = name
+
+        return ToolCallDetail(
+            name=name,
+            id=tool_id,
+            input_summary=summary,
+            file_path=file_path,
+            command=command,
+            query=query,
         )
 
     def get_session_messages(
-        self, session_id: str, limit: int = 100, offset: int = 0
+        self, session_id: str, limit: int = 500, offset: int = 0
     ) -> List[ConversationMessage]:
         """Get messages for a specific session."""
         session_file = self._find_session_file(session_id)
@@ -193,6 +361,158 @@ class SessionParser:
         # Filter to only user and assistant messages
         messages = [m for m in messages if m.type in ("user", "assistant")]
         return messages[offset : offset + limit]
+
+    def get_conversation_tree(self, session_id: str) -> ConversationTree:
+        """Build a tree-structured view of the conversation.
+
+        Groups messages into threads (user question + Claude responses),
+        detects branches where the conversation forked, and builds
+        a collapsible tree structure.
+        """
+        session_file = self._find_session_file(session_id)
+        if not session_file:
+            return ConversationTree()
+
+        # Parse all messages with full metadata
+        all_msgs = []
+        with open(session_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    msg = self._parse_message(obj)
+                    if msg and msg.type in ("user", "assistant"):
+                        all_msgs.append(msg)
+                except (json.JSONDecodeError, Exception):
+                    continue
+
+        if not all_msgs:
+            return ConversationTree()
+
+        # Build a lookup: uuid -> message, parent -> children
+        by_uuid: Dict[str, ConversationMessage] = {}
+        children: Dict[Optional[str], List[str]] = {}
+        for m in all_msgs:
+            by_uuid[m.uuid] = m
+            parent = m.parent_uuid
+            children.setdefault(parent, []).append(m.uuid)
+
+        # Find branch points
+        branch_points = {k for k, v in children.items() if len(v) > 1 and k is not None}
+
+        # Walk the main chain (non-sidechain path) and group into threads
+        # A "thread" = one user message + all consecutive assistant messages
+        def walk_chain(start_uuid: Optional[str], depth: int = 0) -> List[ConversationThread]:
+            threads = []
+            current_thread = None
+            visited = set()
+
+            # Get children of start point
+            child_uuids = children.get(start_uuid, [])
+            queue = list(child_uuids)
+
+            while queue:
+                uid = queue.pop(0)
+                if uid in visited:
+                    continue
+                visited.add(uid)
+
+                msg = by_uuid.get(uid)
+                if not msg:
+                    continue
+
+                if msg.type == "user":
+                    # Start a new thread
+                    if current_thread:
+                        threads.append(current_thread)
+                    current_thread = ConversationThread(
+                        thread_id=uid,
+                        user_message=msg,
+                        depth=depth,
+                        is_sidechain=msg.is_sidechain,
+                    )
+                elif msg.type == "assistant":
+                    if current_thread is None:
+                        # Assistant message without a user message (first msg)
+                        current_thread = ConversationThread(
+                            thread_id=uid,
+                            depth=depth,
+                        )
+                    current_thread.assistant_messages.append(msg)
+
+                # Check if this node is a branch point
+                msg_children = children.get(uid, [])
+                if len(msg_children) > 1:
+                    # Main chain continues with first non-sidechain child
+                    main_child = None
+                    side_children = []
+                    for c in msg_children:
+                        c_msg = by_uuid.get(c)
+                        if c_msg and c_msg.is_sidechain:
+                            side_children.append(c)
+                        elif main_child is None:
+                            main_child = c
+                        else:
+                            side_children.append(c)
+
+                    # Build branch threads for sidechains
+                    if current_thread:
+                        for sc in side_children:
+                            branch_threads = walk_chain(uid, depth + 1)
+                            # Filter to only the sidechain branch
+                            sc_msg = by_uuid.get(sc)
+                            if sc_msg:
+                                branch_thread = ConversationThread(
+                                    thread_id=sc,
+                                    user_message=sc_msg if sc_msg.type == "user" else None,
+                                    depth=depth + 1,
+                                    is_sidechain=True,
+                                )
+                                if sc_msg.type == "assistant":
+                                    branch_thread.assistant_messages.append(sc_msg)
+                                current_thread.branch_children.append(branch_thread)
+
+                    if main_child:
+                        queue.insert(0, main_child)
+                elif len(msg_children) == 1:
+                    queue.insert(0, msg_children[0])
+
+            if current_thread:
+                threads.append(current_thread)
+
+            return threads
+
+        # Start from root (messages with no parent)
+        root_children = children.get(None, [])
+        threads = []
+        current_thread = None
+
+        # Simple linear grouping for the main view
+        for msg in all_msgs:
+            if msg.is_sidechain:
+                continue
+            if msg.type == "user":
+                if current_thread:
+                    threads.append(current_thread)
+                current_thread = ConversationThread(
+                    thread_id=msg.uuid,
+                    user_message=msg,
+                )
+            elif msg.type == "assistant":
+                if current_thread is None:
+                    current_thread = ConversationThread(thread_id=msg.uuid)
+                current_thread.assistant_messages.append(msg)
+
+        if current_thread:
+            threads.append(current_thread)
+
+        return ConversationTree(
+            threads=threads,
+            branch_points=len(branch_points),
+            total_messages=len(all_msgs),
+        )
 
     def _find_session_file(self, session_id: str) -> Optional[Path]:
         """Find the session file for a given session ID."""

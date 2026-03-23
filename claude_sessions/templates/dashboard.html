@@ -1,131 +1,151 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Claude Session Manager{% endblock %}
+{% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
-            <div class="text-3xl font-bold text-green-400">{{ stats.active_sessions }}</div>
-            <div class="text-gray-400 text-sm mt-1">Active Sessions</div>
+<div>
+    <!-- Header row: stats as inline figures, not boxed cards -->
+    <div class="flex items-baseline justify-between mb-12 fade-up">
+        <div>
+            <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Dashboard</h1>
+            <p class="text-ink-500 text-sm mt-1">Your Claude activity at a glance</p>
         </div>
-        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
-            <div class="text-3xl font-bold text-blue-400">{{ stats.total_sessions }}</div>
-            <div class="text-gray-400 text-sm mt-1">Total Sessions</div>
-        </div>
-        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
-            <div class="text-3xl font-bold text-purple-400">{{ stats.total_messages }}</div>
-            <div class="text-gray-400 text-sm mt-1">Total Messages</div>
-        </div>
-        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
-            <div class="text-3xl font-bold text-yellow-400">
-                {% if stats.longest_session %}{{ stats.longest_session.messageCount }}{% else %}0{% endif %}
+        <div class="flex items-baseline gap-10">
+            {% if stats.active_sessions > 0 %}
+            <div class="text-right">
+                <span class="font-display text-2xl font-semibold text-sage-400">{{ stats.active_sessions }}</span>
+                <span class="text-ink-500 text-xs ml-1.5">active</span>
             </div>
-            <div class="text-gray-400 text-sm mt-1">Longest Session (msgs)</div>
+            {% endif %}
+            <div class="text-right">
+                <span class="font-display text-2xl font-semibold text-ink-200">{{ stats.total_sessions }}</span>
+                <span class="text-ink-500 text-xs ml-1.5">sessions</span>
+            </div>
+            <div class="text-right">
+                <span class="font-display text-2xl font-semibold text-ink-300">{{ stats.total_messages }}</span>
+                <span class="text-ink-500 text-xs ml-1.5">messages</span>
+            </div>
         </div>
     </div>
 
-    <!-- Active Sessions (auto-refreshes every 10 seconds) -->
+    <!-- Active Sessions -->
     <div hx-get="/" hx-trigger="every 10s" hx-select="#active-section" hx-swap="outerHTML" id="active-section">
     {% if active_sessions %}
-    <div>
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-semibold flex items-center">
-                <span class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                Active Now ({{ active_sessions|length }})
-            </h2>
-            <span class="text-gray-500 text-xs">Auto-refreshes</span>
+    <section class="mb-12">
+        <div class="flex items-center gap-3 mb-5">
+            <span class="w-2 h-2 rounded-full bg-sage-400 live-dot"></span>
+            <h2 class="font-display text-lg font-semibold text-ink-100">Active</h2>
         </div>
-        <div class="space-y-3">
-            {% for session in active_sessions %}
-            <div class="bg-gray-800 rounded-lg p-4 border border-green-500/30 hover:border-green-500/50 transition">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1">
-                        <div class="flex items-center space-x-2">
-                            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                            <code class="text-green-400 text-sm">{{ session.session_id[:8] }}...</code>
+        {% for session in active_sessions %}
+        <a href="/sessions/{{ session.session_id }}" class="session-entry block border-b border-ink-800/40 py-4 group fade-up">
+            <div class="flex items-start justify-between">
+                <div class="flex items-start gap-3 flex-1 min-w-0">
+                    <button onclick="event.preventDefault(); toggleFav('{{ session.session_id }}', this)"
+                            class="star-btn mt-0.5 text-sm {% if session.session_id in fav_ids %}active{% endif %}">{% if session.session_id in fav_ids %}&#9733;{% else %}&#9734;{% endif %}</button>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-ink-50 font-medium group-hover:text-copper-400 transition-colors truncate">{{ session.title or session.session_id[:8] }}</span>
                             {% if session.session_id == latest_id %}
-                            <span class="bg-green-600 text-xs px-2 py-0.5 rounded">Latest</span>
+                            <span class="text-[10px] uppercase tracking-widest text-sage-400 font-semibold">current</span>
                             {% endif %}
                         </div>
-                        <div class="text-gray-300 mt-1">
-                            <span class="text-gray-500">{{ session.project_path }}</span>
+                        <div class="flex items-center gap-2 mt-1 text-xs text-ink-500">
+                            <span>{{ session.last_activity|format_timestamp }}</span>
+                            <span class="text-ink-700">/</span>
+                            <span>{{ session.message_count }} msgs</span>
+                            <span class="text-ink-700">/</span>
+                            <span class="font-mono text-ink-600">{{ session.model_used or '?' }}</span>
                         </div>
-                        {% if session.summaries %}
-                        <div class="text-gray-400 text-sm mt-2 truncate-2">
-                            {{ session.summaries[0] }}
+                        {% if session.has_pasted_content %}
+                        <div class="flex flex-wrap gap-1.5 mt-2">
+                            {% for ptype in session.pasted_content_types %}
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400 border border-copper-500/15">{{ ptype }}</span>
+                            {% endfor %}
                         </div>
                         {% endif %}
-                        <div class="text-gray-500 text-xs mt-2">
-                            {{ session.last_activity|format_timestamp }} &middot;
-                            {{ session.message_count }} messages &middot;
-                            {{ session.model_used or 'Unknown model' }}
-                        </div>
-                    </div>
-                    <div class="flex space-x-2 ml-4">
-                        <a href="/sessions/{{ session.session_id }}"
-                           class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
-                            View
-                        </a>
-                        <a href="/sessions/{{ session.session_id }}/context"
-                           class="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-sm">
-                            Context
-                        </a>
                     </div>
                 </div>
+                <button onclick="event.preventDefault(); copyResume('{{ session.session_id }}')"
+                        class="text-xs text-ink-500 hover:text-copper-400 font-mono px-2 py-1 rounded border border-ink-800/50 hover:border-copper-500/30 transition-all opacity-0 group-hover:opacity-100 ml-4">
+                    resume
+                </button>
             </div>
-            {% endfor %}
-        </div>
-    </div>
+        </a>
+        {% endfor %}
+    </section>
     {% endif %}
     </div>
 
-    <!-- Recent Sessions -->
-    <div>
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-semibold">Recent Sessions</h2>
-            <a href="/sessions" class="text-purple-400 hover:text-purple-300 text-sm">
-                View All &rarr;
-            </a>
+    <!-- Starred -->
+    {% if fav_sessions %}
+    <section class="mb-12">
+        <div class="flex items-center gap-3 mb-5">
+            <span class="text-copper-400 text-sm">&#9733;</span>
+            <h2 class="font-display text-lg font-semibold text-ink-100">Starred</h2>
         </div>
-        <div class="space-y-3">
-            {% for session in recent_sessions %}
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1">
-                        <div class="flex items-center space-x-2">
-                            <span class="w-2 h-2 bg-gray-500 rounded-full"></span>
-                            <code class="text-gray-400 text-sm">{{ session.session_id[:8] }}...</code>
+        {% for session in fav_sessions %}
+        <a href="/sessions/{{ session.session_id }}" class="session-entry block border-b border-ink-800/40 py-4 group fade-up">
+            <div class="flex items-start justify-between">
+                <div class="flex items-start gap-3 flex-1 min-w-0">
+                    <button onclick="event.preventDefault(); toggleFav('{{ session.session_id }}', this)"
+                            class="star-btn mt-0.5 text-sm active">&#9733;</button>
+                    <div class="flex-1 min-w-0">
+                        <span class="text-ink-100 font-medium group-hover:text-copper-400 transition-colors truncate block">{{ session.title or session.session_id[:8] }}</span>
+                        <div class="flex items-center gap-2 mt-1 text-xs text-ink-500">
+                            <span>{{ session.last_activity|format_timestamp }}</span>
+                            <span class="text-ink-700">/</span>
+                            <span>{{ session.message_count }} msgs</span>
                         </div>
-                        <div class="text-gray-300 mt-1">
-                            <span class="text-gray-500">{{ session.project_path }}</span>
-                        </div>
-                        {% if session.summaries %}
-                        <div class="text-gray-400 text-sm mt-2 truncate-2">
-                            {{ session.summaries[0] }}
-                        </div>
-                        {% endif %}
-                        <div class="text-gray-500 text-xs mt-2">
-                            {{ session.last_activity|format_timestamp }} &middot;
-                            {{ session.message_count }} messages &middot;
-                            {{ session.model_used or 'Unknown' }}
-                        </div>
-                    </div>
-                    <div class="flex space-x-2 ml-4">
-                        <a href="/sessions/{{ session.session_id }}"
-                           class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
-                            View
-                        </a>
-                        <a href="/sessions/{{ session.session_id }}/context"
-                           class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
-                            Context
-                        </a>
                     </div>
                 </div>
+                <button onclick="event.preventDefault(); copyResume('{{ session.session_id }}')"
+                        class="text-xs text-ink-500 hover:text-copper-400 font-mono px-2 py-1 rounded border border-ink-800/50 hover:border-copper-500/30 transition-all opacity-0 group-hover:opacity-100 ml-4">
+                    resume
+                </button>
             </div>
-            {% endfor %}
+        </a>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- Recent -->
+    <section>
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="font-display text-lg font-semibold text-ink-100">Recent</h2>
+            <div class="flex gap-5">
+                <a href="/timeline" class="text-xs text-ink-500 hover:text-copper-400 transition-colors">Timeline &rarr;</a>
+                <a href="/sessions" class="text-xs text-ink-500 hover:text-copper-400 transition-colors">All sessions &rarr;</a>
+            </div>
         </div>
-    </div>
+        {% for session in recent_sessions %}
+        <a href="/sessions/{{ session.session_id }}" class="session-entry block border-b border-ink-800/40 py-4 group fade-up">
+            <div class="flex items-start justify-between">
+                <div class="flex items-start gap-3 flex-1 min-w-0">
+                    <button onclick="event.preventDefault(); toggleFav('{{ session.session_id }}', this)"
+                            class="star-btn mt-0.5 text-sm {% if session.session_id in fav_ids %}active{% endif %}">{% if session.session_id in fav_ids %}&#9733;{% else %}&#9734;{% endif %}</button>
+                    <div class="flex-1 min-w-0">
+                        <span class="text-ink-100 font-medium group-hover:text-copper-400 transition-colors truncate block">{{ session.title or session.session_id[:8] }}</span>
+                        <div class="flex items-center gap-2 mt-1 text-xs text-ink-500">
+                            <span>{{ session.last_activity|format_timestamp }}</span>
+                            <span class="text-ink-700">/</span>
+                            <span>{{ session.message_count }} msgs</span>
+                            <span class="text-ink-700">/</span>
+                            <span class="font-mono text-ink-600">{{ session.model_used or '?' }}</span>
+                            {% if session.has_pasted_content %}
+                            {% for ptype in session.pasted_content_types %}
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400">{{ ptype }}</span>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <button onclick="event.preventDefault(); copyResume('{{ session.session_id }}')"
+                        class="text-xs text-ink-500 hover:text-copper-400 font-mono px-2 py-1 rounded border border-ink-800/50 hover:border-copper-500/30 transition-all opacity-0 group-hover:opacity-100 ml-4">
+                    resume
+                </button>
+            </div>
+        </a>
+        {% endfor %}
+    </section>
 </div>
 {% endblock %}
