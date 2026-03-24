@@ -159,6 +159,17 @@ async def dashboard(request: Request):
     stats.total_sessions = len(all_unified)
     stats.total_messages = sum(s.message_count for s in all_unified)
 
+    # Archive status
+    archive_stats = archive.get_stats()
+    last_archive_ts = archive.get_last_archive_time()
+    if last_archive_ts:
+        last_archive_dt = datetime.fromtimestamp(last_archive_ts)
+        last_archive_time = format_timestamp(last_archive_dt)
+        last_archive_full = last_archive_dt.strftime("%Y-%m-%d %H:%M")
+    else:
+        last_archive_time = None
+        last_archive_full = None
+
     # Get favorites
     fav_ids = {f["session_id"] for f in favorites.get_favorites()}
 
@@ -182,6 +193,9 @@ async def dashboard(request: Request):
             "fav_ids": fav_ids,
             "stats": stats,
             "latest_id": latest_id,
+            "archive_stats": archive_stats,
+            "last_archive_time": last_archive_time,
+            "last_archive_full": last_archive_full,
         },
     )
 

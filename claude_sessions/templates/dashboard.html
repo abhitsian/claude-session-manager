@@ -8,7 +8,14 @@
     <div class="flex items-baseline justify-between mb-12 fade-up">
         <div>
             <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Dashboard</h1>
-            <p class="text-ink-500 text-sm mt-1">Your Claude activity at a glance</p>
+            <p class="text-ink-500 text-sm mt-1">Your Claude activity at a glance
+                {% if last_archive_time %}
+                <span class="text-ink-600 ml-2">&middot; Archived <span title="{{ last_archive_full }}">{{ last_archive_time }}</span>
+                    &middot; {{ archive_stats.total }} saved &middot; {{ archive_stats.total_messages }} msgs</span>
+                {% else %}
+                <span class="text-copper-400/70 ml-2">&middot; No archive run yet &mdash; run <code class="text-xs font-mono">python3 archive_cron.py --all</code></span>
+                {% endif %}
+            </p>
         </div>
         <div class="flex items-baseline gap-10">
             {% if stats.active_sessions > 0 %}

@@ -351,6 +351,19 @@ class SessionArchive:
         finally:
             conn.close()
 
+    def get_last_archive_time(self) -> Optional[float]:
+        """Get the timestamp of the last archive run."""
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT value FROM archive_meta WHERE key = 'last_archive_time'"
+            ).fetchone()
+            return float(row["value"]) if row else None
+        except Exception:
+            return None
+        finally:
+            conn.close()
+
     def get_stats(self) -> dict:
         conn = self._connect()
         try:
