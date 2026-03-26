@@ -640,6 +640,15 @@ async def insights_page(request: Request, days: int = 7):
     )
 
 
+@app.get("/visualize", response_class=HTMLResponse)
+async def visualize_page(request: Request):
+    """Rich visualizations — 3D terrain + constellation scatter."""
+    return templates.TemplateResponse(
+        "visualize.html",
+        {"request": request},
+    )
+
+
 @app.get("/artifacts", response_class=HTMLResponse)
 async def artifacts_list(request: Request, file_type: str = "", session_id: str = ""):
     """Artifacts listing page."""

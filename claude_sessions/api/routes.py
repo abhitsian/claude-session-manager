@@ -154,6 +154,43 @@ async def search_sessions(
 # ===== Artifacts =====
 
 
+@router.get("/viz/sessions")
+async def viz_sessions_data(
+    limit: int = Query(200, le=500),
+) -> dict:
+    """Session data shaped for visualizations (terrain + scatter)."""
+    from ..services.insights import calculate_session_cost
+    sessions = parser.get_all_sessions()
+    active_ids = set(detector.get_active_sessions())
+
+    data = []
+    for s in sessions[:limit]:
+        cost = calculate_session_cost(s)
+        duration_min = (s.last_activity - s.start_time).total_seconds() / 60
+        data.append({
+            "id": s.session_id,
+            "title": s.title or s.session_id[:8],
+            "start": s.start_time.isoformat(),
+            "last": s.last_activity.isoformat(),
+            "messages": s.message_count,
+            "user_messages": s.user_message_count,
+            "assistant_messages": s.assistant_message_count,
+            "input_tokens": s.total_input_tokens,
+            "output_tokens": s.total_output_tokens,
+            "total_tokens": s.total_input_tokens + s.total_output_tokens,
+            "cost": cost["total_cost"],
+            "model": s.model_used or "unknown",
+            "duration_min": round(duration_min, 1),
+            "active": s.session_id in active_ids,
+            "has_pasted": s.has_pasted_content,
+            "hour": s.start_time.hour,
+            "day": s.start_time.strftime("%a"),
+            "date": s.start_time.strftime("%Y-%m-%d"),
+        })
+
+    return {"sessions": data, "total": len(data)}
+
+
 @router.get("/artifacts")
 async def list_artifacts(
     limit: int = Query(100, le=500),
