@@ -89,7 +89,7 @@ def scan_skills(claude_dir: Optional[Path] = None) -> List[SkillEntry]:
 
     skills: List[SkillEntry] = []
 
-    # 1. User commands
+    # 1. User commands (~/.claude/commands/*.md)
     cmd_dir = claude_dir / "commands"
     if cmd_dir.is_dir():
         for md in sorted(cmd_dir.glob("*.md")):
@@ -98,7 +98,6 @@ def scan_skills(claude_dir: Optional[Path] = None) -> List[SkillEntry]:
             name = fm.get("name", md.stem)
             desc = fm.get("description", "") or _extract_description_from_body(text)
 
-            # First line after heading as preview
             preview = ""
             for line in text.splitlines():
                 line = line.strip()
@@ -113,6 +112,59 @@ def scan_skills(claude_dir: Optional[Path] = None) -> List[SkillEntry]:
                 source_type="command",
                 path=str(md),
                 content_preview=preview,
+                tags=_extract_tags(text),
+            ))
+
+    # 2. User skills (~/.claude/skills/)
+    #    - Directories with SKILL.md inside (e.g. skills/learn/SKILL.md)
+    #    - Symlinks to other dirs (e.g. skills/animate -> ~/.agents/skills/animate)
+    #    - Standalone .md files (e.g. skills/daily-work-processor.md)
+    user_skills_dir = claude_dir / "skills"
+    seen_skill_names = set()
+    if user_skills_dir.is_dir():
+        for entry in sorted(user_skills_dir.iterdir()):
+            try:
+                resolved = entry.resolve()
+            except OSError:
+                continue
+
+            skill_md = None
+            name = entry.name
+
+            if resolved.is_dir():
+                # Directory (or symlink to dir) — look for SKILL.md
+                candidate = resolved / "SKILL.md"
+                if candidate.exists():
+                    skill_md = candidate
+            elif resolved.is_file() and entry.name.endswith(".md"):
+                # Standalone .md file
+                skill_md = resolved
+                name = entry.stem
+
+            if not skill_md:
+                continue
+
+            text = skill_md.read_text(errors="replace")
+            fm = _parse_frontmatter(text)
+            name = fm.get("name", name)
+
+            if name in seen_skill_names:
+                continue
+            seen_skill_names.add(name)
+
+            desc = fm.get("description", "") or _extract_description_from_body(text)
+
+            # Determine if this is a symlinked (external) skill or user-created
+            is_symlink = entry.is_symlink()
+            source = "Impeccable" if is_symlink else "You"
+
+            skills.append(SkillEntry(
+                name=name,
+                description=desc,
+                source=source,
+                source_type="skill",
+                path=str(skill_md),
+                content_preview=desc[:150],
                 tags=_extract_tags(text),
             ))
 
@@ -201,13 +253,15 @@ def group_by_source(skills: List[SkillEntry]) -> dict:
 def get_stats(skills: List[SkillEntry]) -> dict:
     """Summary stats for the skills page."""
     user_count = sum(1 for s in skills if s.source == "You")
-    plugin_count = sum(1 for s in skills if s.source != "You")
+    impeccable_count = sum(1 for s in skills if s.source == "Impeccable")
+    plugin_count = sum(1 for s in skills if s.source not in ("You", "Impeccable"))
     skill_count = sum(1 for s in skills if s.source_type == "skill")
     command_count = sum(1 for s in skills if s.source_type == "command")
     plugins = set(s.plugin for s in skills if s.plugin)
     return {
         "total": len(skills),
         "user": user_count,
+        "impeccable": impeccable_count,
         "plugin": plugin_count,
         "skills": skill_count,
         "commands": command_count,
