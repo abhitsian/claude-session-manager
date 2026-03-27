@@ -3,6 +3,52 @@
 {% block title %}Skills{% endblock %}
 
 {% block content %}
+
+{# ===== Reusable card macro ===== #}
+{% macro skill_card(item, badge_type="skill", badge_color="sage", source_label="") %}
+<div class="skill-card session-entry border border-ink-800/40 rounded-lg p-4 fade-up cursor-pointer"
+     data-type="{{ item.source_type }}" data-source="{{ 'user' if item.source == 'You' else 'plugin' }}"
+     data-name="{{ item.name }}" data-desc="{{ item.description }}"
+     onclick="toggleDetail(this)">
+    <div class="flex items-start justify-between">
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+                {% if badge_type == "command" %}
+                <span class="text-copper-400 font-mono text-sm">/{{ item.name }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400 border border-copper-500/15">command</span>
+                {% elif badge_color == "ink" %}
+                <span class="text-ink-100 font-medium text-sm">{{ item.name }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-700/40 text-ink-400 border border-ink-700/30">design</span>
+                {% else %}
+                <span class="text-ink-100 font-medium text-sm">{{ item.name }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-sage-400/10 text-sage-400 border border-sage-400/15">skill</span>
+                {% endif %}
+                {% if item.version %}
+                <span class="text-ink-700 text-[10px] font-mono">{{ item.version[:8] }}</span>
+                {% endif %}
+            </div>
+            <p class="text-ink-400 text-xs mt-1.5 leading-relaxed">{{ item.description }}</p>
+        </div>
+        <span class="text-ink-700 text-[10px] ml-2 mt-1 shrink-0 detail-arrow">&#9662;</span>
+    </div>
+    <div class="skill-detail hidden mt-3 pt-3 border-t border-ink-800/30">
+        {% if item.full_body %}
+        <div class="md-render text-xs text-ink-300 leading-relaxed max-h-80 overflow-y-auto">{{ item.full_body }}</div>
+        {% endif %}
+        {% if item.tags %}
+        <div class="flex flex-wrap gap-1.5 mt-3">
+            {% for tag in item.tags %}
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-800/60 text-ink-500">{{ tag }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <div class="text-ink-600 text-[10px] font-mono mt-2 truncate">
+            {{ source_label }}{% if source_label and item.path %} &middot; {% endif %}{{ item.path }}
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
 <div hx-get="/skills" hx-trigger="every 30s" hx-select="#skills-content" hx-target="#skills-content" hx-swap="innerHTML settle:0.2s">
 <div id="skills-content">
     <!-- Header -->
@@ -55,55 +101,10 @@
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             {% for item in groups["You"].skills %}
-            <div class="skill-card session-entry border border-ink-800/40 rounded-lg p-4 group fade-up cursor-pointer"
-                 data-type="skill" data-source="user" data-name="{{ item.name }}" data-desc="{{ item.description }}"
-                 onclick="toggleDetail(this)">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="text-ink-100 font-medium text-sm">{{ item.name }}</span>
-                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-sage-400/10 text-sage-400 border border-sage-400/15">skill</span>
-                        </div>
-                        <p class="text-ink-400 text-xs mt-1.5 truncate-2">{{ item.description }}</p>
-                    </div>
-                </div>
-                <div class="skill-detail hidden mt-3 pt-3 border-t border-ink-800/30">
-                    {% if item.tags %}
-                    <div class="flex flex-wrap gap-1.5 mt-2">
-                        {% for tag in item.tags %}
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-800/60 text-ink-500">{{ tag }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                    <div class="text-ink-600 text-[10px] font-mono mt-2 truncate">{{ item.path }}</div>
-                </div>
-            </div>
+                {{ skill_card(item, badge_type="skill", badge_color="sage") }}
             {% endfor %}
             {% for item in groups["You"].commands %}
-            <div class="skill-card session-entry border border-ink-800/40 rounded-lg p-4 group fade-up cursor-pointer"
-                 data-type="command" data-source="user" data-name="{{ item.name }}" data-desc="{{ item.description }}"
-                 onclick="toggleDetail(this)">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="text-copper-400 font-mono text-sm">/{{ item.name }}</span>
-                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400 border border-copper-500/15">command</span>
-                        </div>
-                        <p class="text-ink-400 text-xs mt-1.5 truncate-2">{{ item.description }}</p>
-                    </div>
-                </div>
-                <div class="skill-detail hidden mt-3 pt-3 border-t border-ink-800/30">
-                    <p class="text-ink-300 text-xs leading-relaxed">{{ item.content_preview }}</p>
-                    {% if item.tags %}
-                    <div class="flex flex-wrap gap-1.5 mt-2">
-                        {% for tag in item.tags %}
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-800/60 text-ink-500">{{ tag }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                    <div class="text-ink-600 text-[10px] font-mono mt-2 truncate">{{ item.path }}</div>
-                </div>
-            </div>
+                {{ skill_card(item, badge_type="command", badge_color="copper") }}
             {% endfor %}
         </div>
     </section>
@@ -119,28 +120,7 @@
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             {% for item in groups["Impeccable"].skills %}
-            <div class="skill-card session-entry border border-ink-800/40 rounded-lg p-4 group fade-up cursor-pointer"
-                 data-type="skill" data-source="plugin" data-name="{{ item.name }}" data-desc="{{ item.description }}"
-                 onclick="toggleDetail(this)">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="text-ink-100 font-medium text-sm">{{ item.name }}</span>
-                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-700/40 text-ink-400 border border-ink-700/30">design</span>
-                        </div>
-                        <p class="text-ink-400 text-xs mt-1.5 truncate-2">{{ item.description }}</p>
-                    </div>
-                </div>
-                <div class="skill-detail hidden mt-3 pt-3 border-t border-ink-800/30">
-                    {% if item.tags %}
-                    <div class="flex flex-wrap gap-1.5 mt-2">
-                        {% for tag in item.tags %}
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-800/60 text-ink-500">{{ tag }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+                {{ skill_card(item, badge_type="skill", badge_color="ink") }}
             {% endfor %}
         </div>
     </section>
@@ -164,34 +144,7 @@
         {% if group.skills %}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             {% for item in group.skills %}
-            <div class="skill-card session-entry border border-ink-800/40 rounded-lg p-4 group fade-up cursor-pointer"
-                 data-type="skill" data-source="plugin" data-name="{{ item.name }}" data-desc="{{ item.description }}"
-                 onclick="toggleDetail(this)">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="text-ink-100 font-medium text-sm">{{ item.name }}</span>
-                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-sage-400/10 text-sage-400 border border-sage-400/15">skill</span>
-                            {% if item.version %}
-                            <span class="text-ink-700 text-[10px] font-mono">{{ item.version[:8] }}</span>
-                            {% endif %}
-                        </div>
-                        <p class="text-ink-400 text-xs mt-1.5 truncate-2">{{ item.description }}</p>
-                    </div>
-                </div>
-                <div class="skill-detail hidden mt-3 pt-3 border-t border-ink-800/30">
-                    {% if item.tags %}
-                    <div class="flex flex-wrap gap-1.5 mt-2">
-                        {% for tag in item.tags %}
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-800/60 text-ink-500">{{ tag }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                    {% if item.plugin %}
-                    <div class="text-ink-600 text-[10px] font-mono mt-2">{{ item.source }} / {{ item.plugin }}</div>
-                    {% endif %}
-                </div>
-            </div>
+                {{ skill_card(item, badge_type="skill", badge_color="sage", source_label=item.source ~ " / " ~ item.plugin) }}
             {% endfor %}
         </div>
         {% endif %}
@@ -199,31 +152,7 @@
         {% if group.commands %}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             {% for item in group.commands %}
-            <div class="skill-card session-entry border border-ink-800/40 rounded-lg p-4 group fade-up cursor-pointer"
-                 data-type="command" data-source="plugin" data-name="{{ item.name }}" data-desc="{{ item.description }}"
-                 onclick="toggleDetail(this)">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="text-copper-400 font-mono text-sm">/{{ item.name }}</span>
-                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400 border border-copper-500/15">command</span>
-                        </div>
-                        <p class="text-ink-400 text-xs mt-1.5 truncate-2">{{ item.description }}</p>
-                    </div>
-                </div>
-                <div class="skill-detail hidden mt-3 pt-3 border-t border-ink-800/30">
-                    {% if item.tags %}
-                    <div class="flex flex-wrap gap-1.5 mt-2">
-                        {% for tag in item.tags %}
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-800/60 text-ink-500">{{ tag }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                    {% if item.plugin %}
-                    <div class="text-ink-600 text-[10px] font-mono mt-2">{{ item.source }} / {{ item.plugin }}</div>
-                    {% endif %}
-                </div>
-            </div>
+                {{ skill_card(item, badge_type="command", badge_color="copper", source_label=item.source ~ " / " ~ item.plugin) }}
             {% endfor %}
         </div>
         {% endif %}
@@ -233,18 +162,35 @@
 </div>
 </div>
 
+<style>
+    .detail-arrow { transition: transform 0.2s ease; }
+    .skill-card.expanded .detail-arrow { transform: rotate(180deg); }
+    .skill-detail { animation: fadeIn 0.15s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+</style>
+
 <script>
 function toggleDetail(card) {
     const detail = card.querySelector('.skill-detail');
+    const wasHidden = detail.classList.contains('hidden');
     detail.classList.toggle('hidden');
+    card.classList.toggle('expanded', wasHidden);
+
+    // Render markdown on first expand
+    if (wasHidden) {
+        detail.querySelectorAll('.md-render').forEach(el => {
+            if (!el.classList.contains('md-content')) {
+                el.innerHTML = marked.parse(el.textContent);
+                el.classList.add('md-content');
+            }
+        });
+    }
 }
 
 function filterSkills(filter) {
-    // Update button states
     document.querySelectorAll('.skill-filter').forEach(btn => {
         btn.classList.toggle('btn-primary', btn.dataset.filter === filter);
     });
-
     document.querySelectorAll('.skill-card').forEach(card => {
         const type = card.dataset.type;
         const source = card.dataset.source;
@@ -255,8 +201,6 @@ function filterSkills(filter) {
         else if (filter === 'user') show = source === 'user';
         card.style.display = show ? '' : 'none';
     });
-
-    // Hide empty groups
     document.querySelectorAll('.skill-group').forEach(group => {
         const visible = group.querySelectorAll('.skill-card:not([style*="display: none"])');
         group.style.display = visible.length ? '' : 'none';

@@ -22,6 +22,7 @@ class SkillEntry:
     version: Optional[str] = None
     path: str = ""
     content_preview: str = ""
+    full_body: str = ""  # Markdown body (frontmatter stripped)
     tags: List[str] = field(default_factory=list)
 
 
@@ -72,6 +73,16 @@ def _extract_description_from_body(text: str, max_len: int = 200) -> str:
     return desc.rstrip(".")
 
 
+def _get_body(text: str, max_len: int = 2000) -> str:
+    """Return markdown body with frontmatter stripped, capped at max_len."""
+    body = text
+    if text.startswith("---"):
+        end = text.find("---", 3)
+        if end != -1:
+            body = text[end + 3:].strip()
+    return body[:max_len]
+
+
 def _extract_tags(text: str) -> List[str]:
     """Pull simple tags from content: headings, bold keywords."""
     tags = set()
@@ -112,6 +123,7 @@ def scan_skills(claude_dir: Optional[Path] = None) -> List[SkillEntry]:
                 source_type="command",
                 path=str(md),
                 content_preview=preview,
+                full_body=_get_body(text),
                 tags=_extract_tags(text),
             ))
 
@@ -165,6 +177,7 @@ def scan_skills(claude_dir: Optional[Path] = None) -> List[SkillEntry]:
                 source_type="skill",
                 path=str(skill_md),
                 content_preview=desc[:150],
+                full_body=_get_body(text),
                 tags=_extract_tags(text),
             ))
 
@@ -207,6 +220,7 @@ def scan_skills(claude_dir: Optional[Path] = None) -> List[SkillEntry]:
                                 version=version,
                                 path=str(skill_md),
                                 content_preview=desc[:150],
+                                full_body=_get_body(text),
                                 tags=_extract_tags(text),
                             ))
 
@@ -228,6 +242,7 @@ def scan_skills(claude_dir: Optional[Path] = None) -> List[SkillEntry]:
                                 version=version,
                                 path=str(cmd_md),
                                 content_preview=desc[:150],
+                                full_body=_get_body(text),
                                 tags=_extract_tags(text),
                             ))
 
