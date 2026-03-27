@@ -3,7 +3,8 @@
 {% block title %}Skills{% endblock %}
 
 {% block content %}
-<div>
+<div hx-get="/skills" hx-trigger="every 30s" hx-select="#skills-content" hx-target="#skills-content" hx-swap="innerHTML settle:0.2s">
+<div id="skills-content">
     <!-- Header -->
     <div class="flex items-baseline justify-between mb-10 fade-up">
         <div>
@@ -161,6 +162,7 @@
     </section>
     {% endif %}
     {% endfor %}
+</div>
 </div>
 
 <script>
