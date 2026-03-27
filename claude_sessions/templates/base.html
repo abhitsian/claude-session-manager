@@ -240,6 +240,7 @@
                         <a href="/sessions" class="nav-link text-ink-400 hover:text-ink-100 text-sm font-medium transition-colors" id="nav-sessions">Sessions</a>
                         <a href="/artifacts" class="nav-link text-ink-400 hover:text-ink-100 text-sm font-medium transition-colors" id="nav-artifacts">Artifacts</a>
                         <a href="/insights" class="nav-link text-ink-400 hover:text-ink-100 text-sm font-medium transition-colors" id="nav-insights">Insights</a>
+                        <a href="/skills" class="nav-link text-ink-400 hover:text-ink-100 text-sm font-medium transition-colors" id="nav-skills">Skills</a>
                         <a href="/visualize" class="nav-link text-ink-400 hover:text-ink-100 text-sm font-medium transition-colors" id="nav-visualize">Visualize</a>
                     </div>
                 </div>
@@ -294,7 +295,7 @@
 
         // Highlight active nav
         const path = window.location.pathname;
-        const navMap = { '/': 'nav-dashboard', '/timeline': 'nav-timeline', '/sessions': 'nav-sessions', '/artifacts': 'nav-artifacts', '/insights': 'nav-insights', '/visualize': 'nav-visualize' };
+        const navMap = { '/': 'nav-dashboard', '/timeline': 'nav-timeline', '/sessions': 'nav-sessions', '/artifacts': 'nav-artifacts', '/insights': 'nav-insights', '/skills': 'nav-skills', '/visualize': 'nav-visualize' };
         for (const [prefix, id] of Object.entries(navMap)) {
             if (path === prefix || (prefix !== '/' && path.startsWith(prefix))) {
                 document.getElementById(id)?.classList.add('active', 'text-ink-100');

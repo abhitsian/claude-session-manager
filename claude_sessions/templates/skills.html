@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}Skills{% endblock %}
+
+{% block content %}
+<div>
+    <!-- Header -->
+    <div class="flex items-baseline justify-between mb-10 fade-up">
+        <div>
+            <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Skills</h1>
+            <p class="text-ink-500 text-sm mt-1">Every skill and command available in your Claude Code</p>
+        </div>
+        <div class="flex items-baseline gap-10">
+            <div class="text-right">
+                <span class="font-display text-2xl font-semibold text-copper-400">{{ stats.total }}</span>
+                <span class="text-ink-500 text-xs ml-1.5">total</span>
+            </div>
+            <div class="text-right">
+                <span class="font-display text-2xl font-semibold text-sage-400">{{ stats.user }}</span>
+                <span class="text-ink-500 text-xs ml-1.5">yours</span>
+            </div>
+            <div class="text-right">
+                <span class="font-display text-2xl font-semibold text-ink-300">{{ stats.plugin_count }}</span>
+                <span class="text-ink-500 text-xs ml-1.5">plugins</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="flex items-center gap-3 mb-8 fade-up">
+        <button onclick="filterSkills('all')" class="btn-action btn-primary skill-filter" data-filter="all">All</button>
+        <button onclick="filterSkills('command')" class="btn-action skill-filter" data-filter="command">Commands</button>
+        <button onclick="filterSkills('skill')" class="btn-action skill-filter" data-filter="skill">Skills</button>
+        <button onclick="filterSkills('user')" class="btn-action skill-filter" data-filter="user">Yours</button>
+        <div class="flex-1"></div>
+        <input type="text" id="skill-search" placeholder="Filter skills..."
+               oninput="searchSkills(this.value)"
+               class="bg-transparent text-ink-200 placeholder-ink-500 px-3 py-1.5 text-sm border border-ink-700/50 rounded-md w-48 focus:outline-none focus:border-copper-500/60 focus:w-64 transition-all">
+    </div>
+
+    <!-- Your Commands -->
+    {% if groups.get("You") %}
+    <section class="mb-12 skill-group" data-source="user">
+        <div class="flex items-center gap-3 mb-5">
+            <span class="text-copper-400 text-sm">&#9998;</span>
+            <h2 class="font-display text-lg font-semibold text-ink-100">Your Commands</h2>
+            <span class="text-ink-600 text-xs font-mono">~/.claude/commands/</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {% for item in groups["You"].commands %}
+            <div class="skill-card session-entry border border-ink-800/40 rounded-lg p-4 group fade-up cursor-pointer"
+                 data-type="command" data-source="user" data-name="{{ item.name }}" data-desc="{{ item.description }}"
+                 onclick="toggleDetail(this)">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-copper-400 font-mono text-sm">/{{ item.name }}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400 border border-copper-500/15">command</span>
+                        </div>
+                        <p class="text-ink-400 text-xs mt-1.5 truncate-2">{{ item.description }}</p>
+                    </div>
+                </div>
+                <div class="skill-detail hidden mt-3 pt-3 border-t border-ink-800/30">
+                    <p class="text-ink-300 text-xs leading-relaxed">{{ item.content_preview }}</p>
+                    {% if item.tags %}
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        {% for tag in item.tags %}
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-800/60 text-ink-500">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="text-ink-600 text-[10px] font-mono mt-2 truncate">{{ item.path }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Plugin Groups -->
+    {% for key, group in groups.items() %}
+    {% if key != "You" %}
+    <section class="mb-12 skill-group" data-source="plugin">
+        <div class="flex items-center gap-3 mb-5">
+            <span class="text-sage-400 text-sm">&#9881;</span>
+            <h2 class="font-display text-lg font-semibold text-ink-100">{{ group.name }}</h2>
+            {% if group.skills %}
+            <span class="text-ink-600 text-xs">{{ group.skills|length }} skills</span>
+            {% endif %}
+            {% if group.commands %}
+            <span class="text-ink-600 text-xs">{{ group.commands|length }} commands</span>
+            {% endif %}
+        </div>
+
+        {% if group.skills %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+            {% for item in group.skills %}
+            <div class="skill-card session-entry border border-ink-800/40 rounded-lg p-4 group fade-up cursor-pointer"
+                 data-type="skill" data-source="plugin" data-name="{{ item.name }}" data-desc="{{ item.description }}"
+                 onclick="toggleDetail(this)">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-ink-100 font-medium text-sm">{{ item.name }}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-sage-400/10 text-sage-400 border border-sage-400/15">skill</span>
+                            {% if item.version %}
+                            <span class="text-ink-700 text-[10px] font-mono">{{ item.version[:8] }}</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-ink-400 text-xs mt-1.5 truncate-2">{{ item.description }}</p>
+                    </div>
+                </div>
+                <div class="skill-detail hidden mt-3 pt-3 border-t border-ink-800/30">
+                    {% if item.tags %}
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        {% for tag in item.tags %}
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-800/60 text-ink-500">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if item.plugin %}
+                    <div class="text-ink-600 text-[10px] font-mono mt-2">{{ item.source }} / {{ item.plugin }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if group.commands %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {% for item in group.commands %}
+            <div class="skill-card session-entry border border-ink-800/40 rounded-lg p-4 group fade-up cursor-pointer"
+                 data-type="command" data-source="plugin" data-name="{{ item.name }}" data-desc="{{ item.description }}"
+                 onclick="toggleDetail(this)">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-copper-400 font-mono text-sm">/{{ item.name }}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400 border border-copper-500/15">command</span>
+                        </div>
+                        <p class="text-ink-400 text-xs mt-1.5 truncate-2">{{ item.description }}</p>
+                    </div>
+                </div>
+                <div class="skill-detail hidden mt-3 pt-3 border-t border-ink-800/30">
+                    {% if item.tags %}
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        {% for tag in item.tags %}
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-ink-800/60 text-ink-500">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if item.plugin %}
+                    <div class="text-ink-600 text-[10px] font-mono mt-2">{{ item.source }} / {{ item.plugin }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+    {% endfor %}
+</div>
+
+<script>
+function toggleDetail(card) {
+    const detail = card.querySelector('.skill-detail');
+    detail.classList.toggle('hidden');
+}
+
+function filterSkills(filter) {
+    // Update button states
+    document.querySelectorAll('.skill-filter').forEach(btn => {
+        btn.classList.toggle('btn-primary', btn.dataset.filter === filter);
+    });
+
+    document.querySelectorAll('.skill-card').forEach(card => {
+        const type = card.dataset.type;
+        const source = card.dataset.source;
+        let show = false;
+        if (filter === 'all') show = true;
+        else if (filter === 'command') show = type === 'command';
+        else if (filter === 'skill') show = type === 'skill';
+        else if (filter === 'user') show = source === 'user';
+        card.style.display = show ? '' : 'none';
+    });
+
+    // Hide empty groups
+    document.querySelectorAll('.skill-group').forEach(group => {
+        const visible = group.querySelectorAll('.skill-card:not([style*="display: none"])');
+        group.style.display = visible.length ? '' : 'none';
+    });
+}
+
+function searchSkills(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('.skill-card').forEach(card => {
+        const name = (card.dataset.name || '').toLowerCase();
+        const desc = (card.dataset.desc || '').toLowerCase();
+        card.style.display = (!q || name.includes(q) || desc.includes(q)) ? '' : 'none';
+    });
+    document.querySelectorAll('.skill-group').forEach(group => {
+        const visible = group.querySelectorAll('.skill-card:not([style*="display: none"])');
+        group.style.display = visible.length ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

@@ -640,6 +640,25 @@ async def insights_page(request: Request, days: int = 7):
     )
 
 
+@app.get("/skills", response_class=HTMLResponse)
+async def skills_page(request: Request):
+    """Skills browser — all commands and skills from user + plugins."""
+    from .services.skill_scanner import scan_skills, group_by_source, get_stats
+
+    all_skills = scan_skills()
+    groups = group_by_source(all_skills)
+    stats = get_stats(all_skills)
+
+    return templates.TemplateResponse(
+        "skills.html",
+        {
+            "request": request,
+            "groups": groups,
+            "stats": stats,
+        },
+    )
+
+
 @app.get("/visualize", response_class=HTMLResponse)
 async def visualize_page(request: Request):
     """Rich visualizations — 3D terrain + constellation scatter."""
