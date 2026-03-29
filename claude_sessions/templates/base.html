@@ -246,8 +246,10 @@
                 </div>
                 <div class="flex items-center gap-4">
                     <form action="/sessions" method="get" class="flex items-center">
-                        <input type="text" name="q" placeholder="Search..."
-                               class="bg-transparent text-ink-200 placeholder-ink-500 px-3 py-1.5 text-sm border border-ink-700/50 rounded-md w-48 focus:outline-none focus:border-copper-500/60 focus:w-64 transition-all">
+                        <input type="text" name="q" placeholder="Search conversations..."
+                               class="bg-transparent text-ink-200 placeholder-ink-500 px-3 py-1.5 text-sm border border-ink-700/50 rounded-md w-52 focus:outline-none focus:border-copper-500/60 focus:w-72 transition-all"
+                               id="global-search">
+                        <input type="hidden" name="mode" value="messages">
                     </form>
                     <button onclick="toggleTheme()" id="theme-toggle" class="text-ink-500 hover:text-copper-400 transition-colors text-sm" title="Toggle light/dark">
                         <span id="theme-icon">&#9790;</span>

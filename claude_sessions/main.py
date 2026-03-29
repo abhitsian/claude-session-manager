@@ -201,8 +201,14 @@ async def dashboard(request: Request):
 
 
 @app.get("/timeline", response_class=HTMLResponse)
-async def timeline(request: Request):
-    """Timeline view — all sessions (live + archived) grouped by day."""
+async def timeline(request: Request, view: str = "topics"):
+    """Timeline view — all sessions grouped by day, with topic extraction.
+
+    view=topics (default): Groups by topic clusters within each day
+    view=sessions: Classic flat session list per day
+    """
+    from .services.topic_extractor import extract_session_topics_summary, cluster_topics_across_sessions
+
     sessions = _get_all_sessions_unified(limit=200)
     active_ids = set(detector.get_active_sessions())
     fav_ids = {f["session_id"] for f in favorites.get_favorites()}
@@ -215,8 +221,21 @@ async def timeline(request: Request):
         day_key = s.start_time.strftime("%Y-%m-%d")
         day_label = s.start_time.strftime("%A, %B %d, %Y")
         if day_key not in days:
-            days[day_key] = {"label": day_label, "sessions": [], "date": day_key}
+            days[day_key] = {"label": day_label, "sessions": [], "date": day_key, "topic_clusters": [], "session_topics": {}}
         days[day_key]["sessions"].append(s)
+
+    # Extract topics for each session and cluster within each day
+    if view == "topics":
+        for day_key, day_data in days.items():
+            day_session_topics = []
+            for s in day_data["sessions"]:
+                try:
+                    topics_summary = extract_session_topics_summary(s.session_id, parser)
+                    day_session_topics.append(topics_summary)
+                    day_data["session_topics"][s.session_id] = topics_summary
+                except Exception:
+                    day_data["session_topics"][s.session_id] = {"topics": [], "topic_count": 0, "primary_domain": None}
+            day_data["topic_clusters"] = cluster_topics_across_sessions(day_session_topics)
 
     return templates.TemplateResponse(
         "timeline.html",
@@ -224,50 +243,81 @@ async def timeline(request: Request):
             "request": request,
             "days": list(days.values()),
             "fav_ids": fav_ids,
+            "view": view,
         },
     )
 
 
 @app.get("/sessions", response_class=HTMLResponse)
-async def sessions_list(request: Request, page: int = 1, q: str = "", show: str = ""):
-    """Session list page with FTS search. Includes archived sessions."""
+async def sessions_list(request: Request, page: int = 1, q: str = "", mode: str = "sessions"):
+    """Session list page with FTS search. Includes archived sessions.
+
+    mode=sessions (default): session-level results
+    mode=messages: message-level results with deep links
+    """
     page_size = 20
     offset = (page - 1) * page_size
 
+    message_results = []
+
     if q:
-        # Search across both live and archived sessions
-        archive_results = archive.search(q, limit=100)
-        # Build session objects from archive results
+        if mode == "messages":
+            # Message-level search with deep links
+            message_results = search_index.search_messages(q, limit=100)
+            # Also search archive
+            archive_msg_results = archive.search_messages(q, limit=100)
+            seen_uuids = {r["message_uuid"] for r in message_results}
+            for ar in archive_msg_results:
+                if ar["message_uuid"] not in seen_uuids:
+                    message_results.append(ar)
+                    seen_uuids.add(ar["message_uuid"])
+            message_results.sort(key=lambda r: -r.get("match_score", 0))
+
+        # Always get session-level results too
+        # Use NL preprocessing for better results
+        processed_q = search_index._preprocess_nl_query(q)
+        archive_results = archive.search(processed_q, limit=100)
+        # Also search live index
+        live_results = search_index.search(processed_q, limit=100)
+
         sessions = []
         seen_ids = set()
+
+        # Merge live and archive results, deduping
+        for result in live_results:
+            sid = result["session_id"]
+            if sid in seen_ids:
+                continue
+            seen_ids.add(sid)
+            session = parser.get_session(sid)
+            if session:
+                sessions.append(session)
+
         for result in archive_results:
             sid = result["session_id"]
             if sid in seen_ids:
                 continue
             seen_ids.add(sid)
-            # Try live session first
             session = parser.get_session(sid)
             if not session:
-                # Build from archive data
-                archived = archive.get_archived_session(sid)
-                if archived:
+                archived_data = archive.get_archived_session(sid)
+                if archived_data:
                     session = SessionMetadata(
                         session_id=sid,
-                        project_path=archived["project_path"] or "",
-                        start_time=datetime.fromisoformat(archived["start_time"]),
-                        last_activity=datetime.fromisoformat(archived["last_activity"]),
-                        message_count=archived["message_count"],
-                        user_message_count=archived.get("user_message_count", 0),
-                        assistant_message_count=archived.get("assistant_message_count", 0),
-                        model_used=archived.get("model_used"),
-                        title=archived.get("title"),
-                        has_pasted_content=bool(archived.get("has_pasted_content", 0)),
-                        pasted_content_types=json.loads(archived.get("pasted_content_types") or "[]"),
+                        project_path=archived_data["project_path"] or "",
+                        start_time=datetime.fromisoformat(archived_data["start_time"]),
+                        last_activity=datetime.fromisoformat(archived_data["last_activity"]),
+                        message_count=archived_data["message_count"],
+                        user_message_count=archived_data.get("user_message_count", 0),
+                        assistant_message_count=archived_data.get("assistant_message_count", 0),
+                        model_used=archived_data.get("model_used"),
+                        title=archived_data.get("title"),
+                        has_pasted_content=bool(archived_data.get("has_pasted_content", 0)),
+                        pasted_content_types=json.loads(archived_data.get("pasted_content_types") or "[]"),
                     )
             if session:
                 sessions.append(session)
     else:
-        # Show everything — live + archived, unified
         sessions = _get_all_sessions_unified(limit=200)
 
     active_ids = set(detector.get_active_sessions())
@@ -276,19 +326,22 @@ async def sessions_list(request: Request, page: int = 1, q: str = "", show: str 
         session.is_active = session.session_id in active_ids
 
     total = len(sessions)
-    sessions = sessions[offset : offset + page_size]
+    paginated_sessions = sessions[offset : offset + page_size]
     total_pages = (total + page_size - 1) // page_size
 
     return templates.TemplateResponse(
         "sessions.html",
         {
             "request": request,
-            "sessions": sessions,
+            "sessions": paginated_sessions,
             "page": page,
             "total_pages": total_pages,
             "total": total,
             "query": q,
             "fav_ids": fav_ids,
+            "mode": mode,
+            "message_results": message_results[:50] if mode == "messages" else [],
+            "message_total": len(message_results) if mode == "messages" else 0,
         },
     )
 
@@ -614,9 +667,9 @@ async def insights_page(request: Request, days: int = 7):
     # Cross-session patterns
     patterns = analyze_cross_session_patterns(all_sessions, parser)
 
-    # Personalized prompting playbook
+    # Personalized prompting playbook — reactive to selected time window
     live_sessions = parser.get_all_sessions()
-    playbook = generate_prompting_playbook(live_sessions, parser)
+    playbook = generate_prompting_playbook(live_sessions, parser, days=days)
 
     # Per-session costs for the table
     session_costs = []

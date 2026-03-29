@@ -182,7 +182,7 @@
         {% set has_content = (ucontent and not is_noise) or (thread.assistant_messages|selectattr('content')|list|length > 0) %}
 
         {% if has_content %}
-        <div class="thread mb-1" data-thread="{{ thread.thread_id[:8] }}">
+        <div class="thread mb-1" id="msg-{{ thread.thread_id }}" data-thread="{{ thread.thread_id[:8] }}">
             <!-- Collapsed one-liner -->
             <div class="thread-summary hidden cursor-pointer py-2.5 flex items-center gap-3 group session-entry rounded-lg px-3 -mx-3"
                  onclick="toggleThread(this.closest('.thread'))">
@@ -389,6 +389,20 @@ function executeFork() {
         body: JSON.stringify({ source_session: '{{ session.session_id }}', fork_prompt: prompt, context: context })
     }).then(r => r.json()).then(data => { if (!data.ok) showToast('Failed to open Terminal'); });
 }
+
+// Scroll to anchored message on load
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.location.hash) {
+        const target = document.querySelector(window.location.hash);
+        if (target) {
+            setTimeout(() => {
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target.classList.add('ring-1', 'ring-copper-500/40', 'bg-copper-500/5', 'rounded-lg');
+                setTimeout(() => target.classList.remove('ring-1', 'ring-copper-500/40', 'bg-copper-500/5', 'rounded-lg'), 3000);
+            }, 300);
+        }
+    }
+});
 
 function copyMarkdown() {
     const threads = document.querySelectorAll('.thread');

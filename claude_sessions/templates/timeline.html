@@ -4,63 +4,173 @@
 
 {% block content %}
 <div>
-    <div class="mb-10 fade-up">
-        <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Timeline</h1>
-        <p class="text-ink-500 text-sm mt-1">Daily log of your Claude conversations</p>
+    <div class="flex items-baseline justify-between mb-10 fade-up">
+        <div>
+            <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Timeline</h1>
+            <p class="text-ink-500 text-sm mt-1">Topics and conversations across your Claude sessions</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/timeline?view=topics" class="btn-action {% if view == 'topics' %}btn-primary{% endif %}">By Topic</a>
+            <a href="/timeline?view=sessions" class="btn-action {% if view == 'sessions' %}btn-primary{% endif %}">By Session</a>
+        </div>
     </div>
 
     {% for day in days %}
-    <section class="mb-10 fade-up">
+    <section class="mb-12 fade-up">
         <!-- Day header -->
         <div class="flex items-baseline gap-4 mb-1">
             <h2 class="font-display text-base font-semibold text-copper-400">{{ day.label }}</h2>
             <span class="text-ink-600 text-xs">{{ day.sessions|length }} session{{ 's' if day.sessions|length != 1 }}</span>
+            {% if view == 'topics' and day.topic_clusters %}
+            <span class="text-ink-700 text-xs">&middot; {{ day.topic_clusters|length }} topic{{ 's' if day.topic_clusters|length != 1 }}</span>
+            {% endif %}
         </div>
         <div class="border-t border-copper-500/15 mb-5"></div>
 
-        <!-- Sessions -->
+        {% if view == 'topics' and day.topic_clusters %}
+        <!-- ===== TOPIC-GROUPED VIEW ===== -->
+        <div class="ml-0 space-y-6">
+            {% for cluster in day.topic_clusters %}
+            <div class="topic-cluster">
+                <!-- Topic header -->
+                <div class="flex items-start gap-3 mb-2">
+                    {% if cluster.domain %}
+                    <span class="text-[10px] px-1.5 py-0.5 rounded mt-0.5 shrink-0
+                        {% if cluster.domain == 'code' %}bg-sage-500/15 text-sage-400
+                        {% elif cluster.domain == 'career' %}bg-copper-500/15 text-copper-400
+                        {% elif cluster.domain == 'product' %}bg-blue-500/15 text-blue-400
+                        {% elif cluster.domain == 'writing' %}bg-purple-500/15 text-purple-400
+                        {% elif cluster.domain == 'analysis' %}bg-amber-500/15 text-amber-400
+                        {% elif cluster.domain == 'planning' %}bg-teal-500/15 text-teal-400
+                        {% elif cluster.domain == 'personal' %}bg-pink-500/15 text-pink-400
+                        {% else %}bg-ink-700/30 text-ink-400
+                        {% endif %}">{{ cluster.domain }}</span>
+                    {% endif %}
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-ink-200 text-sm font-medium truncate">{{ cluster.label }}</h3>
+                        {% if cluster.keywords %}
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            {% for kw in cluster.keywords[:4] %}
+                            <span class="text-[9px] px-1 py-0 rounded bg-ink-800/60 text-ink-500 font-mono">{{ kw }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <span class="text-ink-600 text-xs shrink-0">{{ cluster.entries|length }} mention{{ 's' if cluster.entries|length != 1 }}</span>
+                </div>
+
+                <!-- Topic entries (links to specific places in sessions) -->
+                <div class="ml-6 border-l border-ink-800/40 pl-4">
+                    {% for entry in cluster.entries %}
+                    <a href="/sessions/{{ entry.session_id }}{% if entry.message_uuid %}#msg-{{ entry.message_uuid }}{% endif %}"
+                       class="session-entry block py-2 group {% if not loop.last %}border-b border-ink-800/20{% endif %}">
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono text-xs text-ink-600 w-10 shrink-0 tabular-nums">{{ entry.time or '' }}</span>
+                            <span class="text-ink-300 text-sm group-hover:text-copper-400 transition-colors truncate flex-1">{{ entry.label }}</span>
+                            <span class="font-mono text-[10px] text-ink-700">{{ entry.session_id[:8] }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Sessions without extracted topics still shown -->
+            {% set orphan_sessions = [] %}
+            {% for session in day.sessions %}
+                {% if session.session_id not in day.session_topics or day.session_topics[session.session_id].topic_count == 0 %}
+                    {% if orphan_sessions.append(session) %}{% endif %}
+                {% endif %}
+            {% endfor %}
+            {% if orphan_sessions %}
+            <div class="mt-4 pt-4 border-t border-ink-800/20">
+                <span class="text-ink-600 text-xs mb-2 block">Other sessions</span>
+                {% for session in orphan_sessions %}
+                <a href="/sessions/{{ session.session_id }}" class="session-entry block py-2.5 group {% if not loop.last %}border-b border-ink-800/20{% endif %}">
+                    <div class="flex items-center gap-3">
+                        <span class="font-mono text-xs text-ink-600 w-10 shrink-0 tabular-nums">{{ session.start_time.strftime('%H:%M') }}</span>
+                        <span class="text-ink-200 text-sm group-hover:text-copper-400 transition-colors truncate">{{ session.title or session.session_id[:8] }}</span>
+                        <span class="text-ink-600 text-xs">{{ session.message_count }} msgs</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        {% else %}
+        <!-- ===== CLASSIC SESSION VIEW ===== -->
         <div class="ml-0">
             {% for session in day.sessions %}
-            <a href="/sessions/{{ session.session_id }}" class="session-entry block py-3.5 group {% if not loop.last %}border-b border-ink-800/30{% endif %}">
-                <div class="flex items-start justify-between">
-                    <div class="flex items-start gap-3 flex-1 min-w-0">
-                        <!-- Time column -->
-                        <span class="font-mono text-xs text-ink-600 w-12 shrink-0 mt-0.5 tabular-nums">{{ session.start_time.strftime('%H:%M') }}</span>
+            <div class="{% if not loop.last %}border-b border-ink-800/30{% endif %}">
+                <a href="/sessions/{{ session.session_id }}" class="session-entry block py-3.5 group">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-start gap-3 flex-1 min-w-0">
+                            <!-- Time column -->
+                            <span class="font-mono text-xs text-ink-600 w-12 shrink-0 mt-0.5 tabular-nums">{{ session.start_time.strftime('%H:%M') }}</span>
 
-                        <button onclick="event.preventDefault(); toggleFav('{{ session.session_id }}', this)"
-                                class="star-btn text-sm mt-0.5 {% if session.session_id in fav_ids %}active{% endif %}">{% if session.session_id in fav_ids %}&#9733;{% else %}&#9734;{% endif %}</button>
+                            <button onclick="event.preventDefault(); toggleFav('{{ session.session_id }}', this)"
+                                    class="star-btn text-sm mt-0.5 {% if session.session_id in fav_ids %}active{% endif %}">{% if session.session_id in fav_ids %}&#9733;{% else %}&#9734;{% endif %}</button>
 
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2">
-                                {% if session.is_active %}
-                                <span class="w-1.5 h-1.5 rounded-full bg-sage-400 live-dot shrink-0"></span>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2">
+                                    {% if session.is_active %}
+                                    <span class="w-1.5 h-1.5 rounded-full bg-sage-400 live-dot shrink-0"></span>
+                                    {% endif %}
+                                    <span class="text-ink-100 font-medium group-hover:text-copper-400 transition-colors truncate">{{ session.title or session.session_id[:8] }}</span>
+                                </div>
+
+                                <!-- Inline topic pills -->
+                                {% if view == 'topics' and session.session_id in day.session_topics and day.session_topics[session.session_id].topics %}
+                                <div class="flex flex-wrap gap-1.5 mt-1.5">
+                                    {% for topic in day.session_topics[session.session_id].topics[:4] %}
+                                    <a href="/sessions/{{ session.session_id }}{% if topic.message_uuid %}#msg-{{ topic.message_uuid }}{% endif %}"
+                                       onclick="event.stopPropagation()"
+                                       class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-ink-800/50 text-ink-400 hover:text-copper-400 hover:bg-copper-500/10 transition-colors">
+                                        {% if topic.domain %}
+                                        <span class="w-1 h-1 rounded-full shrink-0
+                                            {% if topic.domain == 'code' %}bg-sage-400
+                                            {% elif topic.domain == 'career' %}bg-copper-400
+                                            {% elif topic.domain == 'product' %}bg-blue-400
+                                            {% elif topic.domain == 'writing' %}bg-purple-400
+                                            {% else %}bg-ink-500
+                                            {% endif %}"></span>
+                                        {% endif %}
+                                        {{ topic.label[:40] }}{% if topic.label|length > 40 %}...{% endif %}
+                                    </a>
+                                    {% endfor %}
+                                    {% if day.session_topics[session.session_id].topics|length > 4 %}
+                                    <span class="text-[10px] text-ink-600">+{{ day.session_topics[session.session_id].topics|length - 4 }} more</span>
+                                    {% endif %}
+                                </div>
                                 {% endif %}
-                                <span class="text-ink-100 font-medium group-hover:text-copper-400 transition-colors truncate">{{ session.title or session.session_id[:8] }}</span>
-                            </div>
-                            <div class="flex items-center gap-2 mt-1 text-xs text-ink-500">
-                                <span>{{ session.message_count }} msgs</span>
-                                <span class="text-ink-700">/</span>
-                                <span class="font-mono text-ink-600">{{ session.model_used or '?' }}</span>
-                                {% if session.total_input_tokens %}
-                                <span class="text-ink-700">/</span>
-                                <span>{{ ((session.total_input_tokens + session.total_output_tokens) / 1000)|round|int }}K tokens</span>
-                                {% endif %}
-                                {% if session.has_pasted_content %}
-                                {% for ptype in session.pasted_content_types %}
-                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400">{{ ptype }}</span>
-                                {% endfor %}
-                                {% endif %}
+
+                                <div class="flex items-center gap-2 mt-1 text-xs text-ink-500">
+                                    <span>{{ session.message_count }} msgs</span>
+                                    <span class="text-ink-700">/</span>
+                                    <span class="font-mono text-ink-600">{{ session.model_used or '?' }}</span>
+                                    {% if session.total_input_tokens %}
+                                    <span class="text-ink-700">/</span>
+                                    <span>{{ ((session.total_input_tokens + session.total_output_tokens) / 1000)|round|int }}K tokens</span>
+                                    {% endif %}
+                                    {% if session.has_pasted_content %}
+                                    {% for ptype in session.pasted_content_types %}
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400">{{ ptype }}</span>
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
+                        <button onclick="event.preventDefault(); copyResume('{{ session.session_id }}')"
+                                class="text-xs text-ink-500 hover:text-copper-400 font-mono px-2 py-1 rounded border border-ink-800/50 hover:border-copper-500/30 transition-all opacity-0 group-hover:opacity-100 ml-4 shrink-0">
+                            resume
+                        </button>
                     </div>
-                    <button onclick="event.preventDefault(); copyResume('{{ session.session_id }}')"
-                            class="text-xs text-ink-500 hover:text-copper-400 font-mono px-2 py-1 rounded border border-ink-800/50 hover:border-copper-500/30 transition-all opacity-0 group-hover:opacity-100 ml-4 shrink-0">
-                        resume
-                    </button>
-                </div>
-            </a>
+                </a>
+            </div>
             {% endfor %}
         </div>
+        {% endif %}
     </section>
     {% endfor %}
 

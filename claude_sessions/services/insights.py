@@ -363,18 +363,37 @@ def find_related_sessions(
 # ===== Prompting Playbook Generator =====
 
 def generate_prompting_playbook(
-    sessions: List[SessionMetadata], parser: SessionParser
+    sessions: List[SessionMetadata], parser: SessionParser,
+    days: int = 9999, compare_previous: bool = True,
 ) -> dict:
-    """Analyze all sessions and generate a personalized prompting playbook.
+    """Analyze sessions and generate a personalized prompting playbook.
 
     Returns actionable recommendations based on actual usage patterns,
     plus a CLAUDE.md-compatible instruction block.
+
+    When days < 9999, only analyzes sessions within that time window
+    and optionally compares to the previous equivalent period for trends.
     """
     if not sessions:
-        return {"recommendations": [], "claude_md_block": "", "score": 0}
+        return {"recommendations": [], "claude_md_block": "", "score": 0, "trends": {}}
 
-    # Analyze a sample of sessions for efficiency
-    sample = sessions[:20]
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=days) if days < 9999 else None
+
+    # Filter sessions to the selected time window
+    if cutoff:
+        period_sessions = [
+            s for s in sessions
+            if s.start_time.replace(tzinfo=timezone.utc) > cutoff
+        ]
+    else:
+        period_sessions = sessions
+
+    if not period_sessions:
+        return {"recommendations": [], "claude_md_block": "", "score": 0, "trends": {}}
+
+    # Analyze a sample — up to 30 sessions (more than before for better signal)
+    sample = period_sessions[:30]
     all_efficiencies = []
     for s in sample:
         try:
@@ -505,6 +524,51 @@ def generate_prompting_playbook(
     ])
     claude_md_block = "\n".join(claude_md_lines)
 
+    # Compute trends by comparing to previous period
+    trends = {}
+    if compare_previous and cutoff and days < 9999:
+        prev_cutoff = cutoff - timedelta(days=days)
+        prev_sessions = [
+            s for s in sessions
+            if prev_cutoff < s.start_time.replace(tzinfo=timezone.utc) <= cutoff
+        ]
+        if prev_sessions:
+            prev_sample = prev_sessions[:30]
+            prev_efficiencies = []
+            for s in prev_sample:
+                try:
+                    eff = analyze_prompt_efficiency(s.session_id, parser)
+                    if eff:
+                        prev_efficiencies.append(eff)
+                except Exception:
+                    continue
+
+            if prev_efficiencies:
+                prev_avg_clar = sum(e.get("clarification_count", 0) for e in prev_efficiencies) / len(prev_efficiencies)
+                prev_avg_paste = sum(e.get("paste_ratio", 0) for e in prev_efficiencies) / len(prev_efficiencies)
+                prev_avg_fml = sum(e.get("first_msg_length", 0) for e in prev_efficiencies) / len(prev_efficiencies)
+                prev_high_lev = sum(1 for e in prev_efficiencies if e.get("total_assistant_chars", 0) > e.get("total_user_chars", 1) * 10)
+
+                # Compute previous score
+                prev_score = 70
+                if prev_avg_clar > 3: prev_score -= 15
+                elif prev_avg_clar < 1: prev_score += 10
+                if prev_avg_paste > 0.5: prev_score -= 10
+                if prev_avg_fml > 200: prev_score += 10
+                elif prev_avg_fml < 50: prev_score -= 10
+                if prev_high_lev > len(prev_efficiencies) * 0.5: prev_score += 10
+                prev_score = max(20, min(95, prev_score))
+
+                trends = {
+                    "score_change": score - prev_score,
+                    "clarification_change": round(avg_clarifications - prev_avg_clar, 1),
+                    "paste_ratio_change": round((avg_paste_ratio - prev_avg_paste) * 100),
+                    "first_msg_change": int(avg_first_msg_len - prev_avg_fml),
+                    "prev_sessions_analyzed": len(prev_efficiencies),
+                    "prev_score": prev_score,
+                }
+
+    import time as _time
     return {
         "recommendations": recommendations,
         "claude_md_block": claude_md_block,
@@ -516,4 +580,7 @@ def generate_prompting_playbook(
             "high_leverage_pct": int(high_leverage / len(all_efficiencies) * 100) if all_efficiencies else 0,
             "sessions_analyzed": len(all_efficiencies),
         },
+        "trends": trends,
+        "generated_at": _time.time(),
+        "period_days": days,
     }

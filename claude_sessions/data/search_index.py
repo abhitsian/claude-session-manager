@@ -1,6 +1,7 @@
 """SQLite FTS5-based search index for Claude Code sessions."""
 
 import json
+import re
 import sqlite3
 import time
 from datetime import datetime
@@ -332,6 +333,167 @@ class SearchIndex:
             pass
         finally:
             conn.close()
+
+    def search_messages(self, query: str, limit: int = 50) -> List[dict]:
+        """Message-level search — returns individual messages with UUIDs for deep-linking.
+
+        Searches the archive_messages table (which has per-message content) and returns
+        results with session_id, message_uuid, snippet, and context.
+        """
+        # First preprocess the query for better matching
+        processed = self._preprocess_nl_query(query)
+
+        conn = self._connect()
+        try:
+            # Search the sessions FTS for matching sessions, then find specific messages
+            try:
+                session_rows = conn.execute(
+                    """
+                    SELECT session_id, title, all_content
+                    FROM sessions_fts
+                    JOIN sessions s ON s.rowid = sessions_fts.rowid
+                    WHERE sessions_fts MATCH ?
+                    ORDER BY bm25(sessions_fts, 0, 5.0, 3.0, 1.0, 2.0)
+                    LIMIT 30
+                    """,
+                    (processed,),
+                ).fetchall()
+            except Exception:
+                escaped = '"' + query.replace('"', '""') + '"'
+                session_rows = conn.execute(
+                    """
+                    SELECT session_id, title, all_content
+                    FROM sessions_fts
+                    JOIN sessions s ON s.rowid = sessions_fts.rowid
+                    WHERE sessions_fts MATCH ?
+                    ORDER BY bm25(sessions_fts, 0, 5.0, 3.0, 1.0, 2.0)
+                    LIMIT 30
+                    """,
+                    (escaped,),
+                ).fetchall()
+
+            results = []
+            # For each matching session, scan messages to find the specific ones
+            query_words = set(re.findall(r"[a-zA-Z]{3,}", query.lower()))
+
+            for row in session_rows:
+                session_id = row["session_id"]
+                title = row["title"]
+                all_content = row["all_content"] or ""
+
+                # Find the messages from this session that contain the query terms
+                # Parse the all_content back into message chunks
+                # Since all_content is newline-separated, do a simple scan
+                try:
+                    messages = list(self.parser._stream_messages(
+                        self._get_session_file(session_id)
+                    ))
+                except Exception:
+                    continue
+
+                for msg in messages:
+                    if not msg.content or msg.type not in ("user", "assistant"):
+                        continue
+
+                    content_lower = msg.content.lower()
+                    match_count = sum(1 for w in query_words if w in content_lower)
+
+                    if match_count >= max(1, len(query_words) // 2):
+                        # Build snippet around first match
+                        snippet = self._build_snippet(msg.content, query_words, context_chars=120)
+                        results.append({
+                            "session_id": session_id,
+                            "session_title": title,
+                            "message_uuid": msg.uuid,
+                            "message_type": msg.type,
+                            "timestamp": msg.timestamp.isoformat(),
+                            "snippet": snippet,
+                            "match_score": match_count / len(query_words) if query_words else 0,
+                        })
+
+            results.sort(key=lambda r: -r["match_score"])
+            return results[:limit]
+        finally:
+            conn.close()
+
+    def _get_session_file(self, session_id: str) -> Optional[Path]:
+        """Find the JSONL file for a session."""
+        for f in self._get_session_files():
+            if f.stem == session_id:
+                return f
+        return None
+
+    def _build_snippet(self, content: str, query_words: set, context_chars: int = 120) -> str:
+        """Build a snippet around the first match of query words in content."""
+        content_lower = content.lower()
+        best_pos = len(content)
+        for word in query_words:
+            pos = content_lower.find(word)
+            if pos != -1 and pos < best_pos:
+                best_pos = pos
+
+        if best_pos == len(content):
+            best_pos = 0
+
+        start = max(0, best_pos - context_chars // 2)
+        end = min(len(content), best_pos + context_chars)
+
+        snippet = content[start:end].strip()
+        if start > 0:
+            snippet = "..." + snippet
+        if end < len(content):
+            snippet = snippet + "..."
+
+        # Highlight matches with >>> <<< markers
+        for word in query_words:
+            pattern = re.compile(re.escape(word), re.IGNORECASE)
+            snippet = pattern.sub(lambda m: f">>>{m.group(0)}<<<", snippet)
+
+        return snippet
+
+    def _preprocess_nl_query(self, query: str) -> str:
+        """Preprocess a natural language query into FTS5-compatible syntax.
+
+        Handles:
+        - Questions like "when did I discuss X" → X
+        - Quoted phrases preserved
+        - OR/AND operators
+        - Synonym expansion for common terms
+        """
+        original = query.strip()
+
+        # Preserve quoted phrases
+        quoted = re.findall(r'"[^"]*"', original)
+        remaining = re.sub(r'"[^"]*"', '', original).strip()
+
+        # Strip natural language preamble
+        nl_prefixes = [
+            r"^(?:when|where|how|what|which|who)\s+(?:did|do|does|was|were|is|are)\s+(?:i|we|you)\s+",
+            r"^(?:find|search|show|look\s+for|get)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?",
+            r"^(?:conversations?|sessions?|discussions?|chats?)\s+(?:about|regarding|on|where|with)\s+",
+            r"^(?:anything|everything|stuff)\s+(?:about|regarding|on|related\s+to)\s+",
+            r"^(?:i\s+)?(?:want|need)\s+(?:to\s+)?(?:find|see|know|search)\s+",
+        ]
+        for pattern in nl_prefixes:
+            remaining = re.sub(pattern, "", remaining, flags=re.IGNORECASE).strip()
+
+        # Strip trailing question marks and filler words
+        remaining = re.sub(r"\?+$", "", remaining).strip()
+        remaining = re.sub(r"\b(the|a|an|about|regarding|that|which|those|some|any|please)\b", "", remaining, flags=re.IGNORECASE).strip()
+        remaining = re.sub(r"\s+", " ", remaining).strip()
+
+        # If we stripped everything, fall back to original
+        if not remaining and not quoted:
+            remaining = original
+
+        # Combine quoted phrases and remaining terms
+        parts = quoted + [remaining] if remaining else quoted
+        result = " ".join(parts)
+
+        # If the query has OR, convert to FTS5 OR syntax
+        result = re.sub(r"\bor\b", "OR", result, flags=re.IGNORECASE)
+
+        return result if result.strip() else original
 
     def is_stale(self) -> bool:
         """Check if any JSONL files are newer than the last index run."""

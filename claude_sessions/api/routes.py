@@ -218,6 +218,43 @@ async def get_artifact_stats() -> dict:
     return artifact_parser.get_artifact_stats()
 
 
+@router.get("/sessions/{session_id}/topics")
+async def get_session_topics(session_id: str) -> dict:
+    """Extract topic blocks from a session."""
+    from ..services.topic_extractor import extract_topic_blocks
+    session = parser.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    blocks = extract_topic_blocks(session_id, parser)
+    return {
+        "session_id": session_id,
+        "topics": [b.to_dict() for b in blocks],
+        "count": len(blocks),
+    }
+
+
+@router.get("/search/messages")
+async def search_messages(
+    q: str = Query(..., min_length=2),
+    limit: int = Query(50, le=200),
+) -> dict:
+    """Message-level search — returns individual messages matching the query,
+    with session context and deep-link UUIDs."""
+    from ..data.search_index import SearchIndex
+    from ..data.archive import SessionArchive
+    idx = SearchIndex()
+    archive = SessionArchive()
+    results = idx.search_messages(q, limit=limit)
+    # Also search archive
+    archive_results = archive.search_messages(q, limit=limit)
+    seen = {r["message_uuid"] for r in results}
+    for ar in archive_results:
+        if ar["message_uuid"] not in seen:
+            results.append(ar)
+            seen.add(ar["message_uuid"])
+    return {"results": results[:limit], "total": len(results), "query": q}
+
+
 @router.get("/sessions/{session_id}/artifacts")
 async def get_session_artifacts(session_id: str) -> dict:
     """Get artifacts for a specific session."""

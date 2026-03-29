@@ -4,11 +4,10 @@
 
 {% block content %}
 <div>
-    <div class="flex items-baseline justify-between mb-10 fade-up">
+    <div class="flex items-baseline justify-between mb-6 fade-up">
         <div>
             {% if query %}
             <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Search</h1>
-            <p class="text-ink-500 text-sm mt-1">"{{ query }}" &mdash; {{ total }} result{{ 's' if total != 1 }} (searches live + archived)</p>
             {% else %}
             <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Sessions</h1>
             <p class="text-ink-500 text-sm mt-1">{{ total }} conversations (all history)</p>
@@ -16,7 +15,91 @@
         </div>
     </div>
 
-    {% if sessions %}
+    <!-- Enhanced search bar -->
+    <div class="mb-8 fade-up">
+        <form action="/sessions" method="get" class="flex items-stretch gap-2">
+            <div class="relative flex-1">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input type="text" name="q" value="{{ query }}"
+                       placeholder="Search in natural language... e.g. 'when did I discuss career options' or 'code review feedback'"
+                       class="w-full bg-ink-800/50 text-ink-100 placeholder-ink-600 pl-10 pr-4 py-3 text-sm border border-ink-700/40 rounded-lg focus:outline-none focus:border-copper-500/60 focus:bg-ink-800/70 transition-all"
+                       autofocus>
+            </div>
+            <input type="hidden" name="mode" value="{{ mode }}" id="search-mode-input">
+            <button type="submit" class="btn-action btn-primary px-5">Search</button>
+        </form>
+        {% if query %}
+        <div class="flex items-center gap-4 mt-3">
+            <span class="text-ink-600 text-xs">Show results as:</span>
+            <a href="/sessions?q={{ query }}&mode=sessions"
+               class="text-xs {% if mode != 'messages' %}text-copper-400 font-semibold{% else %}text-ink-500 hover:text-ink-300{% endif %} transition-colors">
+                Sessions ({{ total }})
+            </a>
+            <a href="/sessions?q={{ query }}&mode=messages"
+               class="text-xs {% if mode == 'messages' %}text-copper-400 font-semibold{% else %}text-ink-500 hover:text-ink-300{% endif %} transition-colors">
+                Messages ({{ message_total }})
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if query %}
+    <p class="text-ink-500 text-sm mb-6 fade-up">
+        {% if mode == 'messages' %}
+        {{ message_results|length }} message{{ 's' if message_results|length != 1 }} matching "{{ query }}"
+        {% else %}
+        {{ total }} session{{ 's' if total != 1 }} matching "{{ query }}" (searches live + archived)
+        {% endif %}
+    </p>
+    {% endif %}
+
+    {% if mode == 'messages' and message_results %}
+    <!-- ===== MESSAGE-LEVEL RESULTS ===== -->
+    <div class="space-y-1">
+        {% for msg in message_results %}
+        <a href="/sessions/{{ msg.session_id }}#msg-{{ msg.message_uuid }}"
+           class="session-entry block py-3.5 px-4 -mx-4 rounded-lg group fade-up">
+            <div class="flex items-start gap-3">
+                <!-- Message type indicator -->
+                <div class="shrink-0 mt-1">
+                    {% if msg.message_type == 'user' %}
+                    <div class="w-5 h-5 rounded-full bg-copper-500/12 border border-copper-500/20 flex items-center justify-center">
+                        <svg class="w-2.5 h-2.5 text-copper-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0"/></svg>
+                    </div>
+                    {% else %}
+                    <div class="w-5 h-5 rounded-full bg-ink-700/40 border border-ink-600/30 flex items-center justify-center">
+                        <svg class="w-2.5 h-2.5 text-ink-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846"/></svg>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="flex-1 min-w-0">
+                    <!-- Session title + time -->
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-ink-400 text-xs font-medium group-hover:text-copper-400 transition-colors">{{ msg.session_title or msg.session_id[:8] }}</span>
+                        <span class="text-ink-700 text-[10px] font-mono">{{ msg.session_id[:8] }}</span>
+                        {% if msg.timestamp %}
+                        <span class="text-ink-600 text-[10px]">{{ msg.timestamp[:16] }}</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Snippet with highlighted matches -->
+                    <p class="text-ink-300 text-sm leading-relaxed search-snippet">{{ msg.snippet | replace('>>>', '<mark class="bg-copper-500/20 text-copper-300 px-0.5 rounded">') | replace('<<<', '</mark>') | safe }}</p>
+                </div>
+
+                <!-- Deep link indicator -->
+                <svg class="w-4 h-4 text-ink-700 group-hover:text-copper-400 transition-colors shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                </svg>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    {% elif sessions %}
+    <!-- ===== SESSION-LEVEL RESULTS ===== -->
     <div>
         {% for session in sessions %}
         <a href="/sessions/{{ session.session_id }}" class="session-entry block py-4 group fade-up {% if not loop.last %}border-b border-ink-800/30{% endif %}">
@@ -65,12 +148,12 @@
     {% if total_pages > 1 %}
     <div class="flex justify-center items-center gap-4 mt-10">
         {% if page > 1 %}
-        <a href="?page={{ page - 1 }}{% if query %}&q={{ query }}{% endif %}"
+        <a href="?page={{ page - 1 }}{% if query %}&q={{ query }}{% endif %}&mode={{ mode }}"
            class="text-sm text-ink-400 hover:text-copper-400 transition-colors">&larr; Previous</a>
         {% endif %}
         <span class="text-ink-600 text-xs font-mono">{{ page }} / {{ total_pages }}</span>
         {% if page < total_pages %}
-        <a href="?page={{ page + 1 }}{% if query %}&q={{ query }}{% endif %}"
+        <a href="?page={{ page + 1 }}{% if query %}&q={{ query }}{% endif %}&mode={{ mode }}"
            class="text-sm text-ink-400 hover:text-copper-400 transition-colors">Next &rarr;</a>
         {% endif %}
     </div>
@@ -79,8 +162,11 @@
     {% else %}
     <div class="text-center py-20">
         <p class="text-ink-600 font-display text-lg italic">
-            {% if query %}No sessions matching "{{ query }}"{% else %}No sessions yet{% endif %}
+            {% if query %}No results matching "{{ query }}"{% else %}No sessions yet{% endif %}
         </p>
+        {% if query %}
+        <p class="text-ink-700 text-sm mt-2">Try different keywords or a simpler query</p>
+        {% endif %}
     </div>
     {% endif %}
 </div>

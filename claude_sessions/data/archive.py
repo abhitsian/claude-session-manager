@@ -331,6 +331,86 @@ class SessionArchive:
         finally:
             conn.close()
 
+    def search_messages(self, query: str, limit: int = 50) -> list:
+        """Message-level search in archived conversations.
+        Returns individual messages with UUIDs for deep-linking."""
+        import re
+        conn = self._connect()
+        try:
+            query_words = set(re.findall(r"[a-zA-Z]{3,}", query.lower()))
+            if not query_words:
+                return []
+
+            # Search archive_fts first to find matching sessions
+            try:
+                session_rows = conn.execute(
+                    """SELECT a.session_id, a.title
+                    FROM archive_fts
+                    JOIN archived_sessions a ON a.session_id = archive_fts.session_id
+                    WHERE archive_fts MATCH ?
+                    ORDER BY rank LIMIT 30""",
+                    (query,),
+                ).fetchall()
+            except Exception:
+                escaped = '"' + query.replace('"', '""') + '"'
+                session_rows = conn.execute(
+                    """SELECT a.session_id, a.title
+                    FROM archive_fts
+                    JOIN archived_sessions a ON a.session_id = archive_fts.session_id
+                    WHERE archive_fts MATCH ?
+                    ORDER BY rank LIMIT 30""",
+                    (escaped,),
+                ).fetchall()
+
+            results = []
+            for srow in session_rows:
+                sid = srow["session_id"]
+                title = srow["title"]
+                messages = conn.execute(
+                    "SELECT uuid, type, timestamp, content FROM archived_messages WHERE session_id = ? ORDER BY sort_order",
+                    (sid,),
+                ).fetchall()
+                for msg in messages:
+                    content = msg["content"] or ""
+                    if not content or msg["type"] not in ("user", "assistant"):
+                        continue
+                    content_lower = content.lower()
+                    match_count = sum(1 for w in query_words if w in content_lower)
+                    if match_count >= max(1, len(query_words) // 2):
+                        # Build snippet
+                        best_pos = len(content)
+                        for word in query_words:
+                            pos = content_lower.find(word)
+                            if pos != -1 and pos < best_pos:
+                                best_pos = pos
+                        if best_pos == len(content):
+                            best_pos = 0
+                        start = max(0, best_pos - 60)
+                        end = min(len(content), best_pos + 120)
+                        snippet = content[start:end].strip()
+                        if start > 0:
+                            snippet = "..." + snippet
+                        if end < len(content):
+                            snippet = snippet + "..."
+                        for word in query_words:
+                            pattern = re.compile(re.escape(word), re.IGNORECASE)
+                            snippet = pattern.sub(lambda m: f">>>{m.group(0)}<<<", snippet)
+
+                        results.append({
+                            "session_id": sid,
+                            "session_title": title,
+                            "message_uuid": msg["uuid"] or "",
+                            "message_type": msg["type"],
+                            "timestamp": msg["timestamp"],
+                            "snippet": snippet,
+                            "match_score": match_count / len(query_words) if query_words else 0,
+                        })
+
+            results.sort(key=lambda r: -r["match_score"])
+            return results[:limit]
+        finally:
+            conn.close()
+
     def _mark_gone_sessions(self) -> int:
         """Mark sessions whose JSONL files no longer exist."""
         conn = self._connect()
