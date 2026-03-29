@@ -346,31 +346,19 @@ class SearchIndex:
         conn = self._connect()
         try:
             # Search the sessions FTS for matching sessions, then find specific messages
+            fts_msg_query = """
+                SELECT s.session_id, s.title, s.file_path
+                FROM sessions s
+                JOIN sessions_fts ON sessions_fts.rowid = s.rowid
+                WHERE sessions_fts MATCH ?
+                ORDER BY bm25(sessions_fts, 0, 5.0, 3.0, 1.0, 2.0)
+                LIMIT 30
+            """
             try:
-                session_rows = conn.execute(
-                    """
-                    SELECT session_id, title, all_content
-                    FROM sessions_fts
-                    JOIN sessions s ON s.rowid = sessions_fts.rowid
-                    WHERE sessions_fts MATCH ?
-                    ORDER BY bm25(sessions_fts, 0, 5.0, 3.0, 1.0, 2.0)
-                    LIMIT 30
-                    """,
-                    (processed,),
-                ).fetchall()
+                session_rows = conn.execute(fts_msg_query, (processed,)).fetchall()
             except Exception:
                 escaped = '"' + query.replace('"', '""') + '"'
-                session_rows = conn.execute(
-                    """
-                    SELECT session_id, title, all_content
-                    FROM sessions_fts
-                    JOIN sessions s ON s.rowid = sessions_fts.rowid
-                    WHERE sessions_fts MATCH ?
-                    ORDER BY bm25(sessions_fts, 0, 5.0, 3.0, 1.0, 2.0)
-                    LIMIT 30
-                    """,
-                    (escaped,),
-                ).fetchall()
+                session_rows = conn.execute(fts_msg_query, (escaped,)).fetchall()
 
             results = []
             # For each matching session, scan messages to find the specific ones
@@ -379,15 +367,13 @@ class SearchIndex:
             for row in session_rows:
                 session_id = row["session_id"]
                 title = row["title"]
-                all_content = row["all_content"] or ""
 
                 # Find the messages from this session that contain the query terms
-                # Parse the all_content back into message chunks
-                # Since all_content is newline-separated, do a simple scan
+                session_file = self._get_session_file(session_id)
+                if not session_file:
+                    continue
                 try:
-                    messages = list(self.parser._stream_messages(
-                        self._get_session_file(session_id)
-                    ))
+                    messages = list(self.parser._stream_messages(session_file))
                 except Exception:
                     continue
 
