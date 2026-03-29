@@ -51,6 +51,22 @@ async def startup_event():
     # Update which archived sessions are still live
     archive._mark_gone_sessions()
 
+    # Auto-generate descriptions for sessions missing them (runs in background)
+    import threading
+    def _auto_describe():
+        from .services.session_describer import describe_session, get_cached_description
+        try:
+            sessions = parser.get_all_sessions()
+            for s in sessions[:30]:  # Cap at 30 per startup to avoid long blocks
+                if not get_cached_description(s.session_id):
+                    try:
+                        describe_session(s.session_id, parser)
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+    threading.Thread(target=_auto_describe, daemon=True).start()
+
 
 def format_duration(minutes: int) -> str:
     """Format duration in human-readable form."""

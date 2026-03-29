@@ -47,6 +47,30 @@ def main():
     print(f"\nDone. Archived: {archived}, Skipped (already saved): {skipped}, Gone: {gone}")
     print(f"Total in archive: {stats['total']} sessions, {stats['total_messages']} messages")
 
+    # Auto-generate descriptions for sessions missing them
+    from claude_sessions.services.session_describer import describe_session, get_cached_description
+    described = 0
+    for session in sessions:
+        if not get_cached_description(session.session_id):
+            try:
+                describe_session(session.session_id, parser)
+                described += 1
+                print(f"  Described: {session.title or session.session_id[:8]}")
+            except Exception as e:
+                print(f"  Describe failed for {session.session_id[:8]}: {e}")
+    if described:
+        print(f"Generated {described} new descriptions")
+
+    # Update semantic index if stale
+    try:
+        from claude_sessions.data.semantic_index import SemanticIndex
+        sem = SemanticIndex()
+        if sem.is_stale():
+            result = sem.build_index()
+            print(f"Semantic index: {result.get('chunks_indexed', 0)} new chunks indexed")
+    except Exception as e:
+        print(f"Semantic index update failed: {e}")
+
 
 if __name__ == "__main__":
     main()
