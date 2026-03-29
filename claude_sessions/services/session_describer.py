@@ -22,8 +22,8 @@ DB_PATH = Path.home() / ".claude" / "session-descriptions.db"
 
 # Ollama settings
 OLLAMA_URL = "http://localhost:11434/api/generate"
-# Prefer smaller/faster models first, fall back to larger ones
-OLLAMA_MODELS = ["qwen2:7b", "qwen2:1.5b", "phi3:latest", "llama2:latest"]
+# Prefer smallest/fastest models first — cold start can take 30-60s for model loading
+OLLAMA_MODELS = ["qwen2:0.5b", "qwen2:1.5b", "phi3:latest", "qwen2:7b", "llama2:latest"]
 
 
 def _get_db() -> sqlite3.Connection:
@@ -116,7 +116,8 @@ def _call_ollama(prompt: str, model: Optional[str] = None) -> Optional[str]:
             data=payload,
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        # 120s timeout — first call may need 30-60s for model cold start
+        with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read())
             return data.get("response", "").strip()
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ConnectionError, OSError):
