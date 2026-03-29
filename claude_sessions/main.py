@@ -13,6 +13,7 @@ from .data import SessionParser, ActiveSessionDetector, ArtifactParser, SearchIn
 from .data import favorites
 from .data.archive import SessionArchive
 from .data.history_reader import get_all_session_history
+from .data.semantic_index import SemanticIndex
 from .config import settings
 
 app = FastAPI(
@@ -39,6 +40,7 @@ detector = ActiveSessionDetector()
 artifact_parser = ArtifactParser()
 search_index = SearchIndex()
 archive = SessionArchive()
+semantic_index = SemanticIndex()
 
 
 @app.on_event("startup")
@@ -262,16 +264,26 @@ async def sessions_list(request: Request, page: int = 1, q: str = "", mode: str 
 
     if q:
         if mode == "messages":
-            # Message-level search with deep links
-            message_results = search_index.search_messages(q, limit=100)
-            # Also search archive
+            # Hybrid search: semantic + keyword FTS
+            # 1. Get FTS keyword results
+            fts_results = search_index.search_messages(q, limit=100)
             archive_msg_results = archive.search_messages(q, limit=100)
-            seen_uuids = {r["message_uuid"] for r in message_results}
+            seen_uuids = {r["message_uuid"] for r in fts_results}
             for ar in archive_msg_results:
                 if ar["message_uuid"] not in seen_uuids:
-                    message_results.append(ar)
+                    fts_results.append(ar)
                     seen_uuids.add(ar["message_uuid"])
-            message_results.sort(key=lambda r: -r.get("match_score", 0))
+
+            # 2. Hybrid: merge semantic + FTS with weighted scoring
+            try:
+                message_results = semantic_index.hybrid_search(
+                    q, fts_results, top_k=50,
+                    semantic_weight=0.6, fts_weight=0.4,
+                )
+            except Exception:
+                # Fallback to FTS-only if semantic index not built yet
+                message_results = fts_results
+                message_results.sort(key=lambda r: -r.get("match_score", 0))
 
         # Always get session-level results too
         # Use NL preprocessing for better results
@@ -329,6 +341,17 @@ async def sessions_list(request: Request, page: int = 1, q: str = "", mode: str 
     paginated_sessions = sessions[offset : offset + page_size]
     total_pages = (total + page_size - 1) // page_size
 
+    # Semantic index stats for UI
+    sem_stats = semantic_index.get_stats()
+    sem_stats["is_stale"] = semantic_index.is_stale()
+
+    # Check if hybrid search was used
+    has_semantic = (
+        mode == "messages" and q and
+        sem_stats.get("index_exists") and
+        any(r.get("semantic_score", 0) > 0 for r in message_results[:5])
+    )
+
     return templates.TemplateResponse(
         "sessions.html",
         {
@@ -342,6 +365,8 @@ async def sessions_list(request: Request, page: int = 1, q: str = "", mode: str 
             "mode": mode,
             "message_results": message_results[:50] if mode == "messages" else [],
             "message_total": len(message_results) if mode == "messages" else 0,
+            "semantic_stats": sem_stats,
+            "has_semantic": has_semantic,
         },
     )
 
@@ -649,6 +674,42 @@ async def toggle_favorite(session_id: str):
     """Toggle favorite status for a session."""
     new_state = favorites.toggle_favorite(session_id)
     return JSONResponse({"favorited": new_state, "session_id": session_id})
+
+
+# ===== Semantic Search API =====
+
+
+@app.post("/api/semantic/build")
+async def build_semantic_index(request: Request):
+    """Build or rebuild the semantic search index."""
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    force = body.get("force", False)
+    try:
+        stats = semantic_index.build_index(force=force)
+        return JSONResponse({"ok": True, **stats})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.get("/api/semantic/stats")
+async def semantic_stats():
+    """Get semantic index statistics."""
+    return JSONResponse(semantic_index.get_stats())
+
+
+@app.post("/api/semantic/search")
+async def semantic_search_api(request: Request):
+    """Direct semantic search API."""
+    body = await request.json()
+    query = body.get("query", "")
+    top_k = body.get("top_k", 20)
+    if not query:
+        return JSONResponse({"error": "No query"}, status_code=400)
+    try:
+        results = semantic_index.search(query, top_k=top_k)
+        return JSONResponse({"results": results, "total": len(results), "query": query})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.get("/insights", response_class=HTMLResponse)

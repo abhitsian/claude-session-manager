@@ -23,7 +23,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
                 <input type="text" name="q" value="{{ query }}"
-                       placeholder="Search in natural language... e.g. 'when did I discuss career options' or 'code review feedback'"
+                       placeholder="Search in natural language... e.g. 'what did Claude recommend about my career' or 'deployment issues'"
                        class="w-full bg-ink-800/50 text-ink-100 placeholder-ink-600 pl-10 pr-4 py-3 text-sm border border-ink-700/40 rounded-lg focus:outline-none focus:border-copper-500/60 focus:bg-ink-800/70 transition-all"
                        autofocus>
             </div>
@@ -43,12 +43,34 @@
             </a>
         </div>
         {% endif %}
+
+        <!-- Semantic index status -->
+        {% if semantic_stats is defined and semantic_stats %}
+        <div class="mt-3 flex items-center gap-3 text-xs text-ink-600" id="semantic-status">
+            {% if semantic_stats.index_exists %}
+            <span class="flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-sage-500/60"></span>
+                Semantic: {{ semantic_stats.total_chunks }} chunks / {{ semantic_stats.total_sessions }} sessions
+            </span>
+            {% if semantic_stats.is_stale %}
+            <button onclick="buildSemanticIndex(this)" class="text-copper-400 hover:text-copper-300 transition-colors underline underline-offset-2">Update index</button>
+            {% endif %}
+            {% else %}
+            <span class="flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-ink-600"></span>
+                Semantic search not indexed
+            </span>
+            <button onclick="buildSemanticIndex(this)" class="text-copper-400 hover:text-copper-300 transition-colors underline underline-offset-2">Build index</button>
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
 
     {% if query %}
     <p class="text-ink-500 text-sm mb-6 fade-up">
         {% if mode == 'messages' %}
         {{ message_results|length }} message{{ 's' if message_results|length != 1 }} matching "{{ query }}"
+        {% if has_semantic %}<span class="text-sage-400">(semantic + keyword)</span>{% endif %}
         {% else %}
         {{ total }} session{{ 's' if total != 1 }} matching "{{ query }}" (searches live + archived)
         {% endif %}
@@ -89,10 +111,18 @@
                     <p class="text-ink-300 text-sm leading-relaxed search-snippet">{{ msg.snippet | replace('>>>', '<mark class="bg-copper-500/20 text-copper-300 px-0.5 rounded">') | replace('<<<', '</mark>') | safe }}</p>
                 </div>
 
-                <!-- Deep link indicator -->
-                <svg class="w-4 h-4 text-ink-700 group-hover:text-copper-400 transition-colors shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-                </svg>
+                <!-- Score + match type indicators -->
+                <div class="flex flex-col items-end gap-1 shrink-0 mt-1">
+                    {% if msg.semantic_score is defined and msg.semantic_score > 0 %}
+                    <span class="text-[9px] px-1 py-0 rounded bg-sage-500/10 text-sage-400 font-mono" title="Semantic similarity">{{ "%.0f"|format(msg.semantic_score * 100) }}%</span>
+                    {% endif %}
+                    {% if msg.fts_score is defined and msg.fts_score > 0 %}
+                    <span class="text-[9px] px-1 py-0 rounded bg-copper-500/10 text-copper-400 font-mono" title="Keyword match">kw</span>
+                    {% endif %}
+                    <svg class="w-3.5 h-3.5 text-ink-700 group-hover:text-copper-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                </div>
             </div>
         </a>
         {% endfor %}
@@ -170,4 +200,33 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+function buildSemanticIndex(btn) {
+    const orig = btn.textContent;
+    btn.textContent = 'Building...';
+    btn.disabled = true;
+    fetch('/api/semantic/build', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({force: false})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            showToast(`Indexed ${data.chunks_indexed} chunks from ${data.sessions_indexed} sessions in ${data.duration_seconds}s`);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('Failed: ' + (data.error || 'unknown'));
+            btn.textContent = orig;
+            btn.disabled = false;
+        }
+    })
+    .catch(() => {
+        showToast('Failed to build index');
+        btn.textContent = orig;
+        btn.disabled = false;
+    });
+}
+</script>
 {% endblock %}
