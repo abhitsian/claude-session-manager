@@ -21,6 +21,9 @@
                 {% if is_favorite %}&#9733;{% else %}&#9734;{% endif %}
             </button>
             <div class="min-w-0">
+                {% if fav_label is defined and fav_label %}
+                <p class="text-copper-400 font-semibold text-lg mb-0.5">{{ fav_label }}</p>
+                {% endif %}
                 <h1 class="text-xl font-semibold text-ink-50 leading-tight flex items-center gap-2">
                     {% if session.is_active %}
                     <span class="w-2 h-2 rounded-full bg-sage-400 live-dot shrink-0"></span>
@@ -29,6 +32,17 @@
                 </h1>
                 {% if from_archive is defined and from_archive %}
                 <span class="inline-block mt-1.5 text-[10px] px-1.5 py-0.5 rounded bg-ink-700/50 text-ink-400 border border-ink-600/30 uppercase tracking-wider font-semibold">archived</span>
+                {% endif %}
+
+                <!-- LLM Description -->
+                {% if description is defined and description %}
+                <p class="text-ink-400 text-sm mt-2 leading-relaxed">{{ description }}</p>
+                {% else %}
+                <button onclick="generateDescription()" id="gen-desc-btn"
+                        class="text-xs text-ink-600 hover:text-copper-400 mt-2 transition-colors inline-flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                    Generate description
+                </button>
                 {% endif %}
             </div>
         </div>
@@ -333,6 +347,25 @@
 
 <script>
 function showNotify(text) { showToast(text); }
+
+function generateDescription() {
+    const btn = document.getElementById('gen-desc-btn');
+    btn.textContent = 'Generating...';
+    btn.disabled = true;
+    fetch('/api/describe/{{ session.session_id }}', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                const p = document.createElement('p');
+                p.className = 'text-ink-400 text-sm mt-2 leading-relaxed';
+                p.textContent = data.description;
+                btn.replaceWith(p);
+            } else {
+                btn.textContent = 'Failed';
+            }
+        })
+        .catch(() => { btn.textContent = 'Failed'; });
+}
 
 // Thread collapse/expand
 function toggleThread(threadEl) {

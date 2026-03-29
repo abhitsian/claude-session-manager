@@ -502,6 +502,18 @@ async def session_detail(request: Request, session_id: str):
         summary = generate_summary(session_id, parser)
         search_index.save_summary(session_id, summary)
 
+    # LLM-generated description
+    from .services.session_describer import get_cached_description
+    description = get_cached_description(session_id)
+
+    # Favorite label
+    fav_label = ""
+    if is_fav:
+        for f in favorites.get_favorites():
+            if f["session_id"] == session_id:
+                fav_label = f.get("label", "")
+                break
+
     # Cost + efficiency insights for this session
     from .services.insights import calculate_session_cost, analyze_prompt_efficiency, find_related_sessions
     cost = calculate_session_cost(session)
@@ -520,6 +532,8 @@ async def session_detail(request: Request, session_id: str):
             "branch_points": conv_tree.branch_points if hasattr(conv_tree, 'branch_points') else 0,
             "todos": todos,
             "is_favorite": is_fav,
+            "fav_label": fav_label,
+            "description": description,
             "summary": summary,
             "from_archive": from_archive,
             "cost": cost,

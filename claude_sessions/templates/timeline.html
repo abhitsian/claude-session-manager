@@ -9,9 +9,15 @@
             <h1 class="font-display text-3xl font-semibold text-ink-50 tracking-tight">Timeline</h1>
             <p class="text-ink-500 text-sm mt-1">Topics and conversations across your Claude sessions</p>
         </div>
-        <div class="flex gap-2">
-            <a href="/timeline?view=topics" class="btn-action {% if view == 'topics' %}btn-primary{% endif %}">By Topic</a>
-            <a href="/timeline?view=sessions" class="btn-action {% if view == 'sessions' %}btn-primary{% endif %}">By Session</a>
+        <div class="flex items-center gap-3">
+            <button onclick="generateAllDescs()" class="btn-action" id="gen-all-btn" title="Generate descriptions for all sessions using ollama">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                Describe all
+            </button>
+            <div class="flex gap-2">
+                <a href="/timeline?view=topics" class="btn-action {% if view == 'topics' %}btn-primary{% endif %}">By Topic</a>
+                <a href="/timeline?view=sessions" class="btn-action {% if view == 'sessions' %}btn-primary{% endif %}">By Session</a>
+            </div>
         </div>
     </div>
 
@@ -27,75 +33,98 @@
         </div>
         <div class="border-t border-copper-500/15 mb-5"></div>
 
-        {% if view == 'topics' and day.topic_clusters %}
-        <!-- ===== TOPIC-GROUPED VIEW ===== -->
-        <div class="ml-0 space-y-6">
-            {% for cluster in day.topic_clusters %}
-            <div class="topic-cluster">
-                <!-- Topic header -->
-                <div class="flex items-start gap-3 mb-2">
-                    {% if cluster.domain %}
-                    <span class="text-[10px] px-1.5 py-0.5 rounded mt-0.5 shrink-0
-                        {% if cluster.domain == 'code' %}bg-sage-500/15 text-sage-400
-                        {% elif cluster.domain == 'career' %}bg-copper-500/15 text-copper-400
-                        {% elif cluster.domain == 'product' %}bg-blue-500/15 text-blue-400
-                        {% elif cluster.domain == 'writing' %}bg-purple-500/15 text-purple-400
-                        {% elif cluster.domain == 'analysis' %}bg-amber-500/15 text-amber-400
-                        {% elif cluster.domain == 'planning' %}bg-teal-500/15 text-teal-400
-                        {% elif cluster.domain == 'personal' %}bg-pink-500/15 text-pink-400
-                        {% else %}bg-ink-700/30 text-ink-400
-                        {% endif %}">{{ cluster.domain }}</span>
-                    {% endif %}
-                    <div class="flex-1 min-w-0">
-                        <h3 class="text-ink-200 text-sm font-medium truncate">{{ cluster.label }}</h3>
-                        {% if cluster.keywords %}
-                        <div class="flex flex-wrap gap-1 mt-1">
-                            {% for kw in cluster.keywords[:4] %}
-                            <span class="text-[9px] px-1 py-0 rounded bg-ink-800/60 text-ink-500 font-mono">{{ kw }}</span>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-                    </div>
-                    <span class="text-ink-600 text-xs shrink-0">{{ cluster.entries|length }} mention{{ 's' if cluster.entries|length != 1 }}</span>
-                </div>
-
-                <!-- Topic entries (links to specific places in sessions) -->
-                <div class="ml-6 border-l border-ink-800/40 pl-4">
-                    {% for entry in cluster.entries %}
-                    <a href="/sessions/{{ entry.session_id }}{% if entry.message_uuid %}#msg-{{ entry.message_uuid }}{% endif %}"
-                       class="session-entry block py-2 group {% if not loop.last %}border-b border-ink-800/20{% endif %}">
-                        <div class="flex items-center gap-3">
-                            <span class="font-mono text-xs text-ink-600 w-10 shrink-0 tabular-nums">{{ entry.time or '' }}</span>
-                            <span class="text-ink-300 text-sm group-hover:text-copper-400 transition-colors truncate flex-1">{{ entry.label }}</span>
-                            <span class="font-mono text-[10px] text-ink-700">{{ entry.session_id[:8] }}</span>
-                        </div>
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endfor %}
-
-            <!-- Sessions without extracted topics still shown -->
-            {% set orphan_sessions = [] %}
+        {% if view == 'topics' %}
+        <!-- ===== TOPIC VIEW: Each session as a narrative block ===== -->
+        <div class="ml-0 space-y-5">
             {% for session in day.sessions %}
-                {% if session.session_id not in day.session_topics or day.session_topics[session.session_id].topic_count == 0 %}
-                    {% if orphan_sessions.append(session) %}{% endif %}
-                {% endif %}
-            {% endfor %}
-            {% if orphan_sessions %}
-            <div class="mt-4 pt-4 border-t border-ink-800/20">
-                <span class="text-ink-600 text-xs mb-2 block">Other sessions</span>
-                {% for session in orphan_sessions %}
-                <a href="/sessions/{{ session.session_id }}" class="session-entry block py-2.5 group {% if not loop.last %}border-b border-ink-800/20{% endif %}">
-                    <div class="flex items-center gap-3">
-                        <span class="font-mono text-xs text-ink-600 w-10 shrink-0 tabular-nums">{{ session.start_time.strftime('%H:%M') }}</span>
-                        <span class="text-ink-200 text-sm group-hover:text-copper-400 transition-colors truncate">{{ session.title or session.session_id[:8] }}</span>
-                        <span class="text-ink-600 text-xs">{{ session.message_count }} msgs</span>
+            <div class="session-block">
+                <a href="/sessions/{{ session.session_id }}" class="session-entry block py-4 px-4 -mx-4 rounded-lg group">
+                    <div class="flex items-start gap-3">
+                        <!-- Time -->
+                        <span class="font-mono text-xs text-ink-600 w-12 shrink-0 mt-0.5 tabular-nums">{{ session.start_time.strftime('%H:%M') }}</span>
+
+                        <button onclick="event.preventDefault(); toggleFav('{{ session.session_id }}', this)"
+                                ondblclick="event.preventDefault(); event.stopPropagation(); pinSession('{{ session.session_id }}')"
+                                title="Click to star, double-click to pin with name"
+                                class="star-btn text-sm mt-0.5 {% if session.session_id in fav_ids %}active{% endif %}">{% if session.session_id in fav_ids %}&#9733;{% else %}&#9734;{% endif %}</button>
+
+                        <div class="flex-1 min-w-0">
+                            <!-- Title (pinned name or auto-title) -->
+                            <div class="flex items-center gap-2">
+                                {% if session.is_active %}
+                                <span class="w-1.5 h-1.5 rounded-full bg-sage-400 live-dot shrink-0"></span>
+                                {% endif %}
+                                {% if session.session_id in fav_labels and fav_labels[session.session_id] %}
+                                <span class="text-copper-400 font-semibold">{{ fav_labels[session.session_id] }}</span>
+                                {% else %}
+                                <span class="text-ink-100 font-medium group-hover:text-copper-400 transition-colors">{{ session.title or session.session_id[:8] }}</span>
+                                {% endif %}
+                                <span class="font-mono text-[10px] text-ink-700">{{ session.session_id[:8] }}</span>
+                            </div>
+
+                            <!-- LLM Description (narrative) -->
+                            {% if session.session_id in descriptions %}
+                            <p class="text-ink-400 text-sm mt-1.5 leading-relaxed line-clamp-3">{{ descriptions[session.session_id] }}</p>
+                            {% else %}
+                            <button onclick="event.preventDefault(); event.stopPropagation(); generateDesc('{{ session.session_id }}', this)"
+                                    class="text-xs text-ink-600 hover:text-copper-400 mt-1.5 transition-colors inline-flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                                Generate description
+                            </button>
+                            {% endif %}
+
+                            <!-- Topic pills (compact, below description) -->
+                            {% if session.session_id in day.session_topics and day.session_topics[session.session_id].topics %}
+                            <div class="flex flex-wrap gap-1.5 mt-2">
+                                {% for topic in day.session_topics[session.session_id].topics[:5] %}
+                                <a href="/sessions/{{ session.session_id }}{% if topic.message_uuid %}#msg-{{ topic.message_uuid }}{% endif %}"
+                                   onclick="event.stopPropagation()"
+                                   class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-ink-800/50 text-ink-400 hover:text-copper-400 hover:bg-copper-500/10 transition-colors">
+                                    {% if topic.domain %}
+                                    <span class="w-1 h-1 rounded-full shrink-0
+                                        {% if topic.domain == 'code' %}bg-sage-400
+                                        {% elif topic.domain == 'career' %}bg-copper-400
+                                        {% elif topic.domain == 'product' %}bg-blue-400
+                                        {% elif topic.domain == 'writing' %}bg-purple-400
+                                        {% elif topic.domain == 'analysis' %}bg-amber-400
+                                        {% elif topic.domain == 'planning' %}bg-teal-400
+                                        {% else %}bg-ink-500
+                                        {% endif %}"></span>
+                                    {% endif %}
+                                    {{ topic.label[:35] }}{% if topic.label|length > 35 %}...{% endif %}
+                                </a>
+                                {% endfor %}
+                                {% if day.session_topics[session.session_id].topics|length > 5 %}
+                                <span class="text-[10px] text-ink-600">+{{ day.session_topics[session.session_id].topics|length - 5 }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            <!-- Meta row -->
+                            <div class="flex items-center gap-2 mt-2 text-xs text-ink-600">
+                                <span>{{ session.message_count }} msgs</span>
+                                <span class="text-ink-700">/</span>
+                                <span class="font-mono">{{ session.model_used or '?' }}</span>
+                                {% if session.total_input_tokens %}
+                                <span class="text-ink-700">/</span>
+                                <span>{{ ((session.total_input_tokens + session.total_output_tokens) / 1000)|round|int }}K tokens</span>
+                                {% endif %}
+                                {% if session.has_pasted_content %}
+                                {% for ptype in session.pasted_content_types %}
+                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-copper-500/10 text-copper-400">{{ ptype }}</span>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <button onclick="event.preventDefault(); copyResume('{{ session.session_id }}')"
+                                class="text-xs text-ink-500 hover:text-copper-400 font-mono px-2 py-1 rounded border border-ink-800/50 hover:border-copper-500/30 transition-all opacity-0 group-hover:opacity-100 ml-4 shrink-0">
+                            resume
+                        </button>
                     </div>
                 </a>
-                {% endfor %}
             </div>
-            {% endif %}
+            {% endfor %}
         </div>
 
         {% else %}
@@ -196,6 +225,7 @@
 
 <style>
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 </style>
 
 <script>
@@ -215,6 +245,40 @@ function generateDesc(sessionId, btn) {
             }
         })
         .catch(() => { btn.textContent = 'failed'; });
+}
+
+function generateAllDescs() {
+    // Collect all session IDs that don't have descriptions yet
+    const buttons = document.querySelectorAll('button[onclick*="generateDesc"]');
+    const ids = [];
+    buttons.forEach(btn => {
+        const match = btn.getAttribute('onclick').match(/generateDesc\('([^']+)'/);
+        if (match) ids.push(match[1]);
+    });
+    if (ids.length === 0) {
+        showToast('All sessions already have descriptions');
+        return;
+    }
+    const genBtn = document.getElementById('gen-all-btn');
+    genBtn.textContent = `Generating 0/${ids.length}...`;
+    genBtn.disabled = true;
+    let done = 0;
+    // Process sequentially to avoid overloading ollama
+    async function processNext(idx) {
+        if (idx >= ids.length) {
+            showToast(`Generated ${done} descriptions`);
+            setTimeout(() => location.reload(), 800);
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/describe/${ids[idx]}`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.ok) done++;
+        } catch(e) {}
+        genBtn.textContent = `Generating ${idx+1}/${ids.length}...`;
+        processNext(idx + 1);
+    }
+    processNext(0);
 }
 
 function pinSession(sessionId) {
