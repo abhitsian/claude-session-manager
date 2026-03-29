@@ -136,16 +136,25 @@
             <div class="flex items-start justify-between">
                 <div class="flex items-start gap-3 flex-1 min-w-0">
                     <button onclick="event.preventDefault(); toggleFav('{{ session.session_id }}', this)"
+                            ondblclick="event.preventDefault(); event.stopPropagation(); pinSession('{{ session.session_id }}')"
+                            title="Click to star, double-click to pin with name"
                             class="star-btn text-sm mt-0.5 {% if session.session_id in fav_ids %}active{% endif %}">{% if session.session_id in fav_ids %}&#9733;{% else %}&#9734;{% endif %}</button>
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2">
                             {% if session.is_active %}
                             <span class="w-1.5 h-1.5 rounded-full bg-sage-400 live-dot shrink-0"></span>
                             {% endif %}
+                            {% if fav_labels is defined and session.session_id in fav_labels and fav_labels[session.session_id] %}
+                            <span class="text-copper-400 font-semibold truncate">{{ fav_labels[session.session_id] }}</span>
+                            <span class="text-ink-600 text-xs truncate">{{ session.title or session.session_id[:8] }}</span>
+                            {% else %}
                             <span class="text-ink-100 font-medium group-hover:text-copper-400 transition-colors truncate">{{ session.title or session.session_id[:8] }}</span>
+                            {% endif %}
                             <span class="font-mono text-[10px] text-ink-700">{{ session.session_id[:8] }}</span>
                         </div>
-                        {% if session.summaries %}
+                        {% if descriptions is defined and session.session_id in descriptions %}
+                        <p class="text-ink-400 text-sm mt-1 truncate-2 leading-relaxed">{{ descriptions[session.session_id] }}</p>
+                        {% elif session.summaries %}
                         <div class="text-ink-400 text-sm mt-1 truncate-2 leading-relaxed">{{ session.summaries[0] }}</div>
                         {% endif %}
                         <div class="flex items-center gap-2 mt-1.5 text-xs text-ink-500">
@@ -202,6 +211,21 @@
 </div>
 
 <script>
+function pinSession(sessionId) {
+    const label = prompt('Name this session (leave empty to unpin):');
+    if (label === null) return;
+    fetch(`/api/favorites/${sessionId}/pin`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ label: label })
+    }).then(r => r.json()).then(data => {
+        if (data.ok) {
+            showToast(label ? `Pinned as "${label}"` : 'Pin updated');
+            setTimeout(() => location.reload(), 500);
+        }
+    });
+}
+
 function buildSemanticIndex(btn) {
     const orig = btn.textContent;
     btn.textContent = 'Building...';

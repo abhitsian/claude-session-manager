@@ -83,21 +83,31 @@
     {% endif %}
     </div>
 
-    <!-- Starred -->
+    <!-- Pinned / Starred -->
     {% if fav_sessions %}
     <section class="mb-12">
         <div class="flex items-center gap-3 mb-5">
             <span class="text-copper-400 text-sm">&#9733;</span>
-            <h2 class="font-display text-lg font-semibold text-ink-100">Starred</h2>
+            <h2 class="font-display text-lg font-semibold text-ink-100">Pinned</h2>
         </div>
         {% for session in fav_sessions %}
         <a href="/sessions/{{ session.session_id }}" class="session-entry block border-b border-ink-800/40 py-4 group fade-up">
             <div class="flex items-start justify-between">
                 <div class="flex items-start gap-3 flex-1 min-w-0">
                     <button onclick="event.preventDefault(); toggleFav('{{ session.session_id }}', this)"
+                            ondblclick="event.preventDefault(); event.stopPropagation(); pinSession('{{ session.session_id }}')"
+                            title="Click to unstar, double-click to rename"
                             class="star-btn mt-0.5 text-sm active">&#9733;</button>
                     <div class="flex-1 min-w-0">
+                        {% if fav_labels is defined and session.session_id in fav_labels and fav_labels[session.session_id] %}
+                        <span class="text-copper-400 font-semibold truncate block">{{ fav_labels[session.session_id] }}</span>
+                        <span class="text-ink-500 text-xs truncate block">{{ session.title or session.session_id[:8] }}</span>
+                        {% else %}
                         <span class="text-ink-100 font-medium group-hover:text-copper-400 transition-colors truncate block">{{ session.title or session.session_id[:8] }}</span>
+                        {% endif %}
+                        {% if descriptions is defined and session.session_id in descriptions %}
+                        <p class="text-ink-500 text-xs mt-1 leading-relaxed truncate-2">{{ descriptions[session.session_id] }}</p>
+                        {% endif %}
                         <div class="flex items-center gap-2 mt-1 text-xs text-ink-500">
                             <span>{{ session.last_activity|format_timestamp }}</span>
                             <span class="text-ink-700">/</span>
@@ -155,4 +165,21 @@
         {% endfor %}
     </section>
 </div>
+
+<script>
+function pinSession(sessionId) {
+    const label = prompt('Name this session (leave empty to unpin):');
+    if (label === null) return;
+    fetch(`/api/favorites/${sessionId}/pin`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ label: label })
+    }).then(r => r.json()).then(data => {
+        if (data.ok) {
+            showToast(label ? `Pinned as "${label}"` : 'Pin updated');
+            setTimeout(() => location.reload(), 500);
+        }
+    });
+}
+</script>
 {% endblock %}

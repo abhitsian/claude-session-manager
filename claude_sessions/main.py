@@ -185,6 +185,15 @@ async def dashboard(request: Request):
                 fav_sessions.append(session)
         fav_sessions.sort(key=lambda s: s.last_activity, reverse=True)
 
+    # Load favorite labels and descriptions
+    fav_labels = {f["session_id"]: f.get("label", "") for f in favorites.get_favorites()}
+    from .services.session_describer import get_cached_description
+    descriptions = {}
+    for s in fav_sessions + recent_sessions[:5]:
+        desc = get_cached_description(s.session_id)
+        if desc:
+            descriptions[s.session_id] = desc
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -193,6 +202,8 @@ async def dashboard(request: Request):
             "recent_sessions": recent_sessions,
             "fav_sessions": fav_sessions,
             "fav_ids": fav_ids,
+            "fav_labels": fav_labels,
+            "descriptions": descriptions,
             "stats": stats,
             "latest_id": latest_id,
             "archive_stats": archive_stats,
@@ -239,12 +250,25 @@ async def timeline(request: Request, view: str = "topics"):
                     day_data["session_topics"][s.session_id] = {"topics": [], "topic_count": 0, "primary_domain": None}
             day_data["topic_clusters"] = cluster_topics_across_sessions(day_session_topics)
 
+    # Load cached descriptions (no LLM calls on page load)
+    from .services.session_describer import get_cached_description
+    descriptions = {}
+    for s in sessions:
+        desc = get_cached_description(s.session_id)
+        if desc:
+            descriptions[s.session_id] = desc
+
+    # Load favorite labels
+    fav_labels = {f["session_id"]: f.get("label", "") for f in favorites.get_favorites()}
+
     return templates.TemplateResponse(
         "timeline.html",
         {
             "request": request,
             "days": list(days.values()),
             "fav_ids": fav_ids,
+            "fav_labels": fav_labels,
+            "descriptions": descriptions,
             "view": view,
         },
     )
@@ -352,6 +376,16 @@ async def sessions_list(request: Request, page: int = 1, q: str = "", mode: str 
         any(r.get("semantic_score", 0) > 0 for r in message_results[:5])
     )
 
+    # Load cached descriptions for paginated sessions
+    from .services.session_describer import get_cached_description
+    descriptions = {}
+    for s in paginated_sessions:
+        desc = get_cached_description(s.session_id)
+        if desc:
+            descriptions[s.session_id] = desc
+
+    fav_labels = {f["session_id"]: f.get("label", "") for f in favorites.get_favorites()}
+
     return templates.TemplateResponse(
         "sessions.html",
         {
@@ -362,6 +396,8 @@ async def sessions_list(request: Request, page: int = 1, q: str = "", mode: str 
             "total": total,
             "query": q,
             "fav_ids": fav_ids,
+            "fav_labels": fav_labels,
+            "descriptions": descriptions,
             "mode": mode,
             "message_results": message_results[:50] if mode == "messages" else [],
             "message_total": len(message_results) if mode == "messages" else 0,
@@ -674,6 +710,47 @@ async def toggle_favorite(session_id: str):
     """Toggle favorite status for a session."""
     new_state = favorites.toggle_favorite(session_id)
     return JSONResponse({"favorited": new_state, "session_id": session_id})
+
+
+@app.post("/api/favorites/{session_id}/pin")
+async def pin_session(session_id: str, request: Request):
+    """Pin a session with a custom name."""
+    body = await request.json()
+    label = body.get("label", "").strip()
+
+    # Ensure it's favorited first
+    if not favorites.is_favorite(session_id):
+        favorites.toggle_favorite(session_id, label=label)
+    else:
+        favorites.set_label(session_id, label)
+
+    return JSONResponse({"ok": True, "session_id": session_id, "label": label})
+
+
+@app.post("/api/describe/{session_id}")
+async def describe_session_api(session_id: str):
+    """Generate an LLM description for a session."""
+    from .services.session_describer import describe_session
+    try:
+        description = describe_session(session_id, parser)
+        return JSONResponse({"ok": True, "session_id": session_id, "description": description})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.post("/api/describe/batch")
+async def describe_batch_api(request: Request):
+    """Generate descriptions for multiple sessions."""
+    from .services.session_describer import describe_session
+    body = await request.json()
+    session_ids = body.get("session_ids", [])[:20]  # Cap at 20
+    results = {}
+    for sid in session_ids:
+        try:
+            results[sid] = describe_session(sid, parser)
+        except Exception:
+            results[sid] = "Description unavailable."
+    return JSONResponse({"ok": True, "descriptions": results})
 
 
 # ===== Semantic Search API =====
