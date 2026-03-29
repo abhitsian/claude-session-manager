@@ -39,3 +39,9 @@ Thumbs.db
 # Local config
 .env
 *.local
+
+# Data files — never commit session data, embeddings, or databases
+*.db
+*.npy
+*.jsonl
+semantic-index/
